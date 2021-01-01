@@ -9,13 +9,18 @@ find_package(glm REQUIRED)
 find_package(glfw3 REQUIRED)
 find_package(Vulkan REQUIRED)
 
-add_executable(myVulkanApp main.cpp)
-target_include_directories(myVulkanApp
+add_library(HelloTriangleApplication HelloTriangleApplication.cxx)
+target_include_directories(HelloTriangleApplication
                            PUBLIC
                            ${GLFW_INCLUDE_DIR}
                            ${Vulkan_INCLUDE_DIRS})
-target_link_libraries(myVulkanApp
+target_link_libraries(HelloTriangleApplication
                       PUBLIC
                       ${GLFW_LIBRARY}
                       ${Vulkan_LIBRARIES}
                       glm::glm)
+
+add_executable(myVulkanApp main.cxx)
+target_link_libraries(myVulkanApp
+                      PUBLIC
+                      HelloTriangleApplication)
