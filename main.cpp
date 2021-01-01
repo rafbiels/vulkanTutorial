@@ -3,10 +3,13 @@
 #include <GLFW/glfw3.h>
 #include <vulkan/vulkan.hpp>
 
+#include <algorithm>
 #include <cstdlib>
 #include <iostream>
 #include <span>
 #include <stdexcept>
+#include <string>
+#include <string_view>
 
 namespace {
   constexpr int c_windowWidth{800}, c_windowHeight{600};
@@ -72,7 +75,8 @@ private:
     uint32_t glfwExtensionCount{0};
     const char** glfwExtensions = glfwGetRequiredInstanceExtensions(&glfwExtensionCount);
     std::cout << "required extensions:\n";
-    for (const auto& ext : std::span{glfwExtensions,glfwExtensionCount}) {
+    const auto glfwExtensionsSpan = std::span{glfwExtensions,glfwExtensionCount};
+    for (const auto& ext : glfwExtensionsSpan) {
       std::cout << '\t' << ext << '\n';
     }
 
@@ -99,6 +103,13 @@ private:
     std::cout << "available extensions:\n";
     for (const auto& extension : extensions) {
       std::cout << '\t' << extension.extensionName << '\n';
+    }
+    for (const auto& extName : glfwExtensionsSpan) {
+      auto matchName = [&extName](const vk::ExtensionProperties& e){
+        return std::string_view(e.extensionName) == std::string_view(extName);
+      };
+      throwOnFailure(std::ranges::find_if(extensions, matchName) != extensions.end(),
+                     std::string("Required extension ") + extName + " is not available");
     }
   }
 
