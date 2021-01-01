@@ -4,6 +4,7 @@
 #include <vulkan/vulkan.hpp>
 
 #include <algorithm>
+#include <array>
 #include <cstdlib>
 #include <iostream>
 #include <span>
@@ -12,7 +13,17 @@
 #include <string_view>
 
 namespace {
+  // Constants
   constexpr int c_windowWidth{800}, c_windowHeight{600};
+  constexpr std::array<const char*,1> c_validationLayers = {
+    "VK_LAYER_KHRONOS_validation"
+  };
+  #ifdef NDEBUG
+    constexpr bool c_enableValidationLayers = false;
+  #else
+    constexpr bool c_enableValidationLayers = true;
+  #endif
+  // Helper functions
   constexpr void throwOnFailure(vk::Result result, const std::string& msg="Failure!") {
     if (result != vk::Result::eSuccess) {
       throw std::runtime_error(msg);
@@ -63,6 +74,10 @@ private:
     // -------------------------------------------
     // Initialise Vulkan
     // -------------------------------------------
+    if (c_enableValidationLayers && !checkValidationLayerSupport()) {
+      throw std::runtime_error("Validation layers requested, but not available");
+    }
+
     vk::ApplicationInfo appInfo = {
       .sType = vk::StructureType::eApplicationInfo,
       .pApplicationName = "Hello Triangle",
@@ -83,7 +98,8 @@ private:
     vk::InstanceCreateInfo createInfo = {
       .sType = vk::StructureType::eInstanceCreateInfo,
       .pApplicationInfo = &appInfo,
-      .enabledLayerCount = 0,
+      .enabledLayerCount = static_cast<uint32_t>(c_enableValidationLayers ? c_validationLayers.size() : 0),
+      .ppEnabledLayerNames = (c_enableValidationLayers ? c_validationLayers.data() : nullptr),
       .enabledExtensionCount = glfwExtensionCount,
       .ppEnabledExtensionNames = glfwExtensions
     };
@@ -112,6 +128,35 @@ private:
                      std::string("Required extension ") + extName + " is not available");
     }
   }
+
+  static bool checkValidationLayerSupport() {
+    size_t notFound{0};
+    uint32_t layerCount{0};
+    throwOnFailure(vk::enumerateInstanceLayerProperties(
+      &layerCount, nullptr));
+    std::vector<vk::LayerProperties> availableLayers(layerCount);
+    throwOnFailure(vk::enumerateInstanceLayerProperties(
+      &layerCount, availableLayers.data()));
+    std::cout << "required validation layers:" << std::endl;
+    for (const auto& layerName : c_validationLayers) {
+      std::cout << '\t' << layerName << std::endl;
+    }
+    std::cout << "available validation layers:" << std::endl;
+    for (const auto& layer : availableLayers) {
+      std::cout << '\t' << layer.layerName << std::endl;
+    }
+    for (const auto& layerName : std::span{c_validationLayers}) {
+      auto matchName = [&layerName](const vk::LayerProperties& vl){
+        return std::string_view(vl.layerName) == std::string_view(layerName);
+      };
+      if (std::ranges::find_if(availableLayers, matchName) == availableLayers.end()) {
+        std::cout << "Validation layer " << layerName << " is not available" << std::endl;
+        ++notFound;
+      }
+    }
+
+    return notFound == 0;
+}
 
   GLFWwindow* m_window{nullptr};
   vk::Instance m_instance;
