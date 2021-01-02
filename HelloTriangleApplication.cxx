@@ -52,6 +52,7 @@ void HelloTriangleApplication::initVulkan() {
   createInstance();
   setupDebugMessenger();
   pickPhysicalDevice();
+  createLogicalDevice();
 }
 
 // -----------------------------------------------------------------------------
@@ -64,6 +65,7 @@ void HelloTriangleApplication::mainLoop() {
 // -----------------------------------------------------------------------------
 void HelloTriangleApplication::cleanup() {
   cleanupDebugMessenger();
+  m_device.destroy();
   m_instance.destroy();
   glfwDestroyWindow(m_window);
   glfwTerminate();
@@ -94,14 +96,15 @@ void HelloTriangleApplication::createInstance() {
     .sType = vk::StructureType::eInstanceCreateInfo,
     .pNext = (c_enableValidationLayers ? &debugCreateInfo : nullptr),
     .pApplicationInfo = &appInfo,
-    .enabledLayerCount = static_cast<uint32_t>(c_enableValidationLayers ? c_validationLayers.size() : 0),
-    .ppEnabledLayerNames = (c_enableValidationLayers ? c_validationLayers.data() : nullptr),
+    .enabledLayerCount = static_cast<uint32_t>(c_enableValidationLayers ?
+                                               c_validationLayers.size() : 0),
+    .ppEnabledLayerNames = (c_enableValidationLayers ?
+                            c_validationLayers.data() : nullptr),
     .enabledExtensionCount = static_cast<uint32_t>(extensions.size()),
     .ppEnabledExtensionNames = extensions.data()
   };
-  if (vk::createInstance(&createInfo, nullptr, &m_instance) != vk::Result::eSuccess) {
-    throw std::runtime_error("failed to create instance!");
-  }
+  throwOnFailure(vk::createInstance(&createInfo, nullptr, &m_instance),
+                 "Failed to create instance");
 
   m_dispatchLoaderDynamic = vk::DispatchLoaderDynamic{m_instance, vkGetInstanceProcAddr};
 }
@@ -120,6 +123,28 @@ void HelloTriangleApplication::pickPhysicalDevice() {
   auto devIterator = std::ranges::find_if(devices, isDeviceSuitable);
   throwOnFailure(devIterator!=devices.end(), "Failed to find a suitable GPU");
   m_physicalDevice = *devIterator;
+}
+
+// -----------------------------------------------------------------------------
+void HelloTriangleApplication::createLogicalDevice() {
+  QueueFamilyIndices indices = findQueueFamilies(m_physicalDevice);
+  float queuePriority = 1.0F;
+  vk::DeviceQueueCreateInfo queueCreateInfo = {
+    .sType = vk::StructureType::eDeviceQueueCreateInfo,
+    .queueFamilyIndex = indices.graphicsFamily.value(),
+    .queueCount = 1,
+    .pQueuePriorities = &queuePriority
+  };
+  vk::PhysicalDeviceFeatures deviceFeatures{};
+  vk::DeviceCreateInfo createInfo = {
+    .sType = vk::StructureType::eDeviceCreateInfo,
+    .queueCreateInfoCount = 1,
+    .pQueueCreateInfos = &queueCreateInfo,
+    .pEnabledFeatures = &deviceFeatures
+  };
+  throwOnFailure(m_physicalDevice.createDevice(&createInfo, nullptr, &m_device),
+                 "Failed to create logical device");
+  m_device.getQueue(indices.graphicsFamily.value(), 0, &m_graphicsQueue);
 }
 
 // -----------------------------------------------------------------------------

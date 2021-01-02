@@ -30,6 +30,7 @@ private:
   void setupDebugMessenger();
   void cleanupDebugMessenger();
   void pickPhysicalDevice();
+  void createLogicalDevice();
 
   // --------------- static private methods ----------------
   static QueueFamilyIndices findQueueFamilies(vk::PhysicalDevice device);
@@ -51,6 +52,8 @@ private:
   vk::DispatchLoaderDynamic m_dispatchLoaderDynamic;
   vk::DebugUtilsMessengerEXT m_debugMessenger;
   vk::PhysicalDevice m_physicalDevice;
+  vk::Device m_device;
+  vk::Queue m_graphicsQueue;
 }; // class HelloTriangleApplication
 
 #endif // HELLOTRIANGLEAPPLICATION_H
