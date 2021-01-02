@@ -40,6 +40,7 @@ private:
   void pickPhysicalDevice();
   void createLogicalDevice();
   void createSwapChain();
+  void createImageViews();
   QueueFamilyIndices findQueueFamilies(vk::PhysicalDevice device);
   bool isDeviceSuitable(vk::PhysicalDevice device);
   SwapChainSupportDetails querySwapChainSupport(vk::PhysicalDevice device);
@@ -76,6 +77,7 @@ private:
   std::vector<vk::Image> m_swapChainImages;
   vk::Format m_swapChainImageFormat;
   vk::Extent2D m_swapChainExtent;
+  std::vector<vk::ImageView> m_swapChainImageViews;
 }; // class HelloTriangleApplication
 
 #endif // HELLOTRIANGLEAPPLICATION_H

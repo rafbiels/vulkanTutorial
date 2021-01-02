@@ -59,6 +59,7 @@ void HelloTriangleApplication::initVulkan() {
   pickPhysicalDevice();
   createLogicalDevice();
   createSwapChain();
+  createImageViews();
 }
 
 // -----------------------------------------------------------------------------
@@ -232,6 +233,33 @@ void HelloTriangleApplication::createSwapChain() {
 
   m_swapChain = m_device.createSwapchainKHR(createInfo);
   m_swapChainImages = m_device.getSwapchainImagesKHR(m_swapChain);
+}
+
+// -----------------------------------------------------------------------------
+void HelloTriangleApplication::createImageViews() {
+  m_swapChainImageViews.reserve(m_swapChainImages.size());
+  for (const vk::Image image : m_swapChainImages) {
+    vk::ImageViewCreateInfo createInfo = {
+      .sType = vk::StructureType::eImageViewCreateInfo,
+      .image = image,
+      .viewType = vk::ImageViewType::e2D,
+      .format = m_swapChainImageFormat,
+      .components = {
+        .r = vk::ComponentSwizzle::eIdentity,
+        .g = vk::ComponentSwizzle::eIdentity,
+        .b = vk::ComponentSwizzle::eIdentity,
+        .a = vk::ComponentSwizzle::eIdentity
+      },
+      .subresourceRange = {
+        .aspectMask = vk::ImageAspectFlagBits::eColor,
+        .baseMipLevel = 0,
+        .levelCount = 1,
+        .baseArrayLayer = 0,
+        .layerCount = 1
+      }
+    };
+    m_swapChainImageViews.push_back(m_device.createImageView(createInfo));
+  }
 }
 
 // -----------------------------------------------------------------------------
