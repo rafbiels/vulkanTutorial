@@ -194,9 +194,13 @@ void HelloTriangleApplication::createLogicalDevice() {
 // -----------------------------------------------------------------------------
 void HelloTriangleApplication::createSwapChain() {
   SwapChainSupportDetails swapChainSupport = querySwapChainSupport(m_physicalDevice);
+
   vk::SurfaceFormatKHR surfaceFormat = chooseSwapSurfaceFormat(swapChainSupport.formats);
+  m_swapChainImageFormat = surfaceFormat.format;
+
   vk::PresentModeKHR presentMode = chooseSwapPresentMode(swapChainSupport.presentModes);
-  vk::Extent2D extent = chooseSwapExtent(swapChainSupport.capabilities);
+
+  m_swapChainExtent = chooseSwapExtent(swapChainSupport.capabilities);
   uint32_t imageCount = swapChainSupport.capabilities.minImageCount + 1;
   if (swapChainSupport.capabilities.maxImageCount > 0) {
     imageCount = std::min(imageCount, swapChainSupport.capabilities.maxImageCount);
@@ -213,7 +217,7 @@ void HelloTriangleApplication::createSwapChain() {
     .minImageCount = imageCount,
     .imageFormat = surfaceFormat.format,
     .imageColorSpace = surfaceFormat.colorSpace,
-    .imageExtent = extent,
+    .imageExtent = m_swapChainExtent,
     .imageArrayLayers = 1,
     .imageUsage = vk::ImageUsageFlagBits::eColorAttachment,
     .imageSharingMode = (singleQueue ? vk::SharingMode::eExclusive : vk::SharingMode::eConcurrent),
@@ -227,6 +231,7 @@ void HelloTriangleApplication::createSwapChain() {
   };
 
   m_swapChain = m_device.createSwapchainKHR(createInfo);
+  m_swapChainImages = m_device.getSwapchainImagesKHR(m_swapChain);
 }
 
 // -----------------------------------------------------------------------------

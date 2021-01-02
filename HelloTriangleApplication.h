@@ -73,6 +73,9 @@ private:
   vk::Queue m_graphicsQueue;
   vk::Queue m_presentQueue;
   vk::SwapchainKHR m_swapChain;
+  std::vector<vk::Image> m_swapChainImages;
+  vk::Format m_swapChainImageFormat;
+  vk::Extent2D m_swapChainExtent;
 }; // class HelloTriangleApplication
 
 #endif // HELLOTRIANGLEAPPLICATION_H
