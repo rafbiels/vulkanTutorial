@@ -15,6 +15,9 @@ namespace {
   constexpr std::array<const char*,1> c_validationLayers = {
     "VK_LAYER_KHRONOS_validation"
   };
+  constexpr std::array<const char*,1> c_deviceExtensions = {
+    VK_KHR_SWAPCHAIN_EXTENSION_NAME
+  };
   #ifdef NDEBUG
     constexpr bool c_enableValidationLayers = false;
   #else
@@ -55,6 +58,7 @@ void HelloTriangleApplication::initVulkan() {
   createSurface();
   pickPhysicalDevice();
   createLogicalDevice();
+  createSwapChain();
 }
 
 // -----------------------------------------------------------------------------
@@ -67,6 +71,7 @@ void HelloTriangleApplication::mainLoop() {
 // -----------------------------------------------------------------------------
 void HelloTriangleApplication::cleanup() {
   cleanupDebugMessenger();
+  m_device.destroySwapchainKHR(m_swapChain);
   m_device.destroy();
   m_instance.destroySurfaceKHR(m_surface);
   m_instance.destroy();
@@ -176,12 +181,52 @@ void HelloTriangleApplication::createLogicalDevice() {
     .sType = vk::StructureType::eDeviceCreateInfo,
     .queueCreateInfoCount = static_cast<uint32_t>(queueCreateInfos.size()),
     .pQueueCreateInfos = queueCreateInfos.data(),
+    .enabledExtensionCount = static_cast<uint32_t>(c_deviceExtensions.size()),
+    .ppEnabledExtensionNames = c_deviceExtensions.data(),
     .pEnabledFeatures = &deviceFeatures
   };
   throwOnFailure(m_physicalDevice.createDevice(&createInfo, nullptr, &m_device),
                  "Failed to create logical device");
   m_device.getQueue(indices.graphicsFamily.value(), 0, &m_graphicsQueue);
   m_device.getQueue(indices.presentFamily.value(), 0, &m_presentQueue);
+}
+
+// -----------------------------------------------------------------------------
+void HelloTriangleApplication::createSwapChain() {
+  SwapChainSupportDetails swapChainSupport = querySwapChainSupport(m_physicalDevice);
+  vk::SurfaceFormatKHR surfaceFormat = chooseSwapSurfaceFormat(swapChainSupport.formats);
+  vk::PresentModeKHR presentMode = chooseSwapPresentMode(swapChainSupport.presentModes);
+  vk::Extent2D extent = chooseSwapExtent(swapChainSupport.capabilities);
+  uint32_t imageCount = swapChainSupport.capabilities.minImageCount + 1;
+  if (swapChainSupport.capabilities.maxImageCount > 0) {
+    imageCount = std::min(imageCount, swapChainSupport.capabilities.maxImageCount);
+  }
+
+  QueueFamilyIndices indices = findQueueFamilies(m_physicalDevice);
+  bool singleQueue = (indices.graphicsFamily == indices.presentFamily);
+  auto queueFamilyIndices = std::array<uint32_t,2>{indices.graphicsFamily.value(),
+                                                   indices.presentFamily.value()};
+
+  vk::SwapchainCreateInfoKHR createInfo = {
+    .sType = vk::StructureType::eSwapchainCreateInfoKHR,
+    .surface = m_surface,
+    .minImageCount = imageCount,
+    .imageFormat = surfaceFormat.format,
+    .imageColorSpace = surfaceFormat.colorSpace,
+    .imageExtent = extent,
+    .imageArrayLayers = 1,
+    .imageUsage = vk::ImageUsageFlagBits::eColorAttachment,
+    .imageSharingMode = (singleQueue ? vk::SharingMode::eExclusive : vk::SharingMode::eConcurrent),
+    .queueFamilyIndexCount = static_cast<uint32_t>(singleQueue ? 0 : 2),
+    .pQueueFamilyIndices = (singleQueue ? nullptr : queueFamilyIndices.data()),
+    .preTransform = swapChainSupport.capabilities.currentTransform,
+    .compositeAlpha = vk::CompositeAlphaFlagBitsKHR::eOpaque,
+    .presentMode = presentMode,
+    .clipped = VK_TRUE,
+    .oldSwapchain = nullptr
+  };
+
+  m_swapChain = m_device.createSwapchainKHR(createInfo);
 }
 
 // -----------------------------------------------------------------------------
@@ -225,7 +270,48 @@ bool HelloTriangleApplication::isDeviceSuitable(vk::PhysicalDevice device) {
   if (deviceFeatures.geometryShader == VK_FALSE) {return false;}
   */
   QueueFamilyIndices indices = findQueueFamilies(device);
-  return indices.isComplete();
+  if (not indices.isComplete()) {return false;}
+
+  bool extensionsSupported = checkDeviceExtensionSupport(device);
+  if (not extensionsSupported) {return false;}
+
+  SwapChainSupportDetails swapChainSupport = querySwapChainSupport(device);
+  if (swapChainSupport.formats.empty()) {return false;}
+  if (swapChainSupport.presentModes.empty()) {return false;}
+
+  return true;
+}
+
+// -----------------------------------------------------------------------------
+HelloTriangleApplication::SwapChainSupportDetails
+HelloTriangleApplication::querySwapChainSupport(vk::PhysicalDevice device) {
+  SwapChainSupportDetails details{
+    .capabilities = device.getSurfaceCapabilitiesKHR(m_surface),
+    .formats = device.getSurfaceFormatsKHR(m_surface),
+    .presentModes = device.getSurfacePresentModesKHR(m_surface)
+  };
+  return details;
+}
+
+// -----------------------------------------------------------------------------
+vk::Extent2D
+HelloTriangleApplication::chooseSwapExtent(const vk::SurfaceCapabilitiesKHR& capabilities) {
+  if (capabilities.currentExtent.width != std::numeric_limits<uint32_t>::max()) {
+    return capabilities.currentExtent;
+  }
+
+  int frameBufferWidth{0};
+  int frameBufferHeight{0};
+  glfwGetFramebufferSize(m_window, &frameBufferWidth, &frameBufferHeight);
+
+  return vk::Extent2D{
+    .width = std::max(capabilities.minImageExtent.width,
+                      std::min(capabilities.maxImageExtent.width,
+                               static_cast<uint32_t>(frameBufferWidth))),
+    .height = std::max(capabilities.minImageExtent.height,
+                       std::min(capabilities.maxImageExtent.height,
+                                static_cast<uint32_t>(frameBufferHeight)))
+  };
 }
 
 // -----------------------------------------------------------------------------
@@ -255,6 +341,31 @@ bool HelloTriangleApplication::checkValidationLayerSupport() {
     }
   }
 
+  return notFound == 0;
+}
+
+// -----------------------------------------------------------------------------
+bool HelloTriangleApplication::checkDeviceExtensionSupport(vk::PhysicalDevice device) {
+  size_t notFound{0};
+  std::vector<vk::ExtensionProperties> availableExtensions =
+    device.enumerateDeviceExtensionProperties();
+  std::cout << "required device extensions:" << std::endl;
+  for (const auto& extName : c_deviceExtensions) {
+    std::cout << '\t' << extName << std::endl;
+  }
+  std::cout << "available device extensions:" << std::endl;
+  for (const auto& ext : availableExtensions) {
+    std::cout << '\t' << ext.extensionName << std::endl;
+  }
+  for (const auto& extName : std::span{c_deviceExtensions}) {
+    auto matchName = [&extName](const vk::ExtensionProperties& e){
+      return std::string_view(e.extensionName) == std::string_view(extName);
+    };
+    if (std::ranges::find_if(availableExtensions, matchName) == availableExtensions.end()) {
+      std::cout << "Device extension " << extName << " is not available" << std::endl;
+      ++notFound;
+    }
+  }
   return notFound == 0;
 }
 
@@ -307,6 +418,43 @@ std::vector<const char*> HelloTriangleApplication::getRequiredExtensions() {
 }
 
 // -----------------------------------------------------------------------------
+vk::SurfaceFormatKHR HelloTriangleApplication::chooseSwapSurfaceFormat(
+  const std::vector<vk::SurfaceFormatKHR>& availableFormats) {
+  auto selected = std::ranges::find_if(availableFormats, [](vk::SurfaceFormatKHR fmt){
+    return fmt.format  == vk::Format::eB8G8R8A8Srgb &&
+           fmt.colorSpace == vk::ColorSpaceKHR::eSrgbNonlinear;
+  });
+  if (selected != availableFormats.end()) {
+    return *selected;
+  }
+  return availableFormats.at(0);
+}
+
+// -----------------------------------------------------------------------------
+vk::PresentModeKHR HelloTriangleApplication::chooseSwapPresentMode(
+  const std::vector<vk::PresentModeKHR>& availablePresentModes) {
+  auto selected = std::ranges::find(availablePresentModes, vk::PresentModeKHR::eMailbox);
+  if (selected != availablePresentModes.end()) {
+    return *selected;
+  }
+  return vk::PresentModeKHR::eFifo;
+}
+
+// -----------------------------------------------------------------------------
+vk::DebugUtilsMessengerCreateInfoEXT HelloTriangleApplication::createDebugMessengerCreateInfo() {
+  using Severity = vk::DebugUtilsMessageSeverityFlagBitsEXT;
+  using Type = vk::DebugUtilsMessageTypeFlagBitsEXT;
+  return {
+    .sType = vk::StructureType::eDebugUtilsMessengerCreateInfoEXT,
+    .messageSeverity = /*Severity::eVerbose |*/ Severity::eInfo |
+                        Severity::eWarning | Severity::eError,
+    .messageType = Type::eGeneral | Type::eValidation | Type::ePerformance,
+    .pfnUserCallback = debugCallback,
+    .pUserData = nullptr
+  };
+}
+
+// -----------------------------------------------------------------------------
 VKAPI_ATTR VkBool32 VKAPI_CALL HelloTriangleApplication::debugCallback(
   VkDebugUtilsMessageSeverityFlagBitsEXT /*messageSeverity*/,
   VkDebugUtilsMessageTypeFlagsEXT /*messageType*/,
@@ -316,18 +464,4 @@ VKAPI_ATTR VkBool32 VKAPI_CALL HelloTriangleApplication::debugCallback(
   std::cerr << "validation layer: " << pCallbackData->pMessage << std::endl;
 
   return VK_FALSE;
-}
-
-// -----------------------------------------------------------------------------
-vk::DebugUtilsMessengerCreateInfoEXT HelloTriangleApplication::createDebugMessengerCreateInfo() {
-  using Severity = vk::DebugUtilsMessageSeverityFlagBitsEXT;
-  using Type = vk::DebugUtilsMessageTypeFlagBitsEXT;
-  return {
-    .sType = vk::StructureType::eDebugUtilsMessengerCreateInfoEXT,
-    .messageSeverity = Severity::eVerbose | Severity::eInfo |
-                        Severity::eWarning | Severity::eError,
-    .messageType = Type::eGeneral | Type::eValidation | Type::ePerformance,
-    .pfnUserCallback = debugCallback,
-    .pUserData = nullptr
-  };
 }

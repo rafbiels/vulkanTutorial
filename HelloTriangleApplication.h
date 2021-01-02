@@ -23,6 +23,11 @@ private:
                presentFamily.has_value();
     }
   };
+  struct SwapChainSupportDetails {
+    vk::SurfaceCapabilitiesKHR capabilities;
+    std::vector<vk::SurfaceFormatKHR> formats;
+    std::vector<vk::PresentModeKHR> presentModes;
+  };
   // --------------- private methods -----------------------
   void initWindow();
   void initVulkan();
@@ -34,12 +39,20 @@ private:
   void createSurface();
   void pickPhysicalDevice();
   void createLogicalDevice();
+  void createSwapChain();
   QueueFamilyIndices findQueueFamilies(vk::PhysicalDevice device);
   bool isDeviceSuitable(vk::PhysicalDevice device);
+  SwapChainSupportDetails querySwapChainSupport(vk::PhysicalDevice device);
+  vk::Extent2D chooseSwapExtent(const vk::SurfaceCapabilitiesKHR& capabilities);
 
   // --------------- static private methods ----------------
   static bool checkValidationLayerSupport();
+  static bool checkDeviceExtensionSupport(vk::PhysicalDevice device);
   static std::vector<const char*> getRequiredExtensions();
+  static vk::SurfaceFormatKHR chooseSwapSurfaceFormat(
+    const std::vector<vk::SurfaceFormatKHR>& availableFormats);
+  static vk::PresentModeKHR chooseSwapPresentMode(
+    const std::vector<vk::PresentModeKHR>& availablePresentModes);
   static vk::DebugUtilsMessengerCreateInfoEXT createDebugMessengerCreateInfo();
 
   // Cannot use c++ types as arguments because API requires this function signature
@@ -59,6 +72,7 @@ private:
   vk::Device m_device;
   vk::Queue m_graphicsQueue;
   vk::Queue m_presentQueue;
+  vk::SwapchainKHR m_swapChain;
 }; // class HelloTriangleApplication
 
 #endif // HELLOTRIANGLEAPPLICATION_H
