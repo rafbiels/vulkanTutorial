@@ -6,6 +6,7 @@
 #include <GLFW/glfw3.h>
 #include <vulkan/vulkan.hpp>
 
+#include <optional>
 #include <vector>
 
 class HelloTriangleApplication {
@@ -13,6 +14,13 @@ public:
   // --------------- public methods ------------------------
   void run();
 private:
+  // --------------- private types -------------------------
+  struct QueueFamilyIndices {
+    std::optional<uint32_t> graphicsFamily;
+    [[nodiscard]] constexpr bool isComplete() const {
+        return graphicsFamily.has_value();
+    }
+  };
   // --------------- private methods -----------------------
   void initWindow();
   void initVulkan();
@@ -21,8 +29,11 @@ private:
   void createInstance();
   void setupDebugMessenger();
   void cleanupDebugMessenger();
+  void pickPhysicalDevice();
 
   // --------------- static private methods ----------------
+  static QueueFamilyIndices findQueueFamilies(vk::PhysicalDevice device);
+  static bool isDeviceSuitable(vk::PhysicalDevice device);
   static bool checkValidationLayerSupport();
   static std::vector<const char*> getRequiredExtensions();
   static vk::DebugUtilsMessengerCreateInfoEXT createDebugMessengerCreateInfo();
@@ -39,6 +50,7 @@ private:
   vk::Instance m_instance;
   vk::DispatchLoaderDynamic m_dispatchLoaderDynamic;
   vk::DebugUtilsMessengerEXT m_debugMessenger;
+  vk::PhysicalDevice m_physicalDevice;
 }; // class HelloTriangleApplication
 
 #endif // HELLOTRIANGLEAPPLICATION_H

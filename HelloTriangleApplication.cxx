@@ -20,15 +20,13 @@ namespace {
     constexpr bool c_enableValidationLayers = true;
   #endif
   // Helper functions
-  constexpr void throwOnFailure(vk::Result result, const std::string& msg="Failure!") {
-    if (result != vk::Result::eSuccess) {
-      throw std::runtime_error(msg);
-    }
-  }
   constexpr void throwOnFailure(bool result, const std::string& msg="Failure!") {
     if (!result) {
       throw std::runtime_error(msg);
     }
+  }
+  constexpr void throwOnFailure(vk::Result result, const std::string& msg="Failure!") {
+    throwOnFailure(result==vk::Result::eSuccess, msg);
   }
 } // anonymous namespace
 
@@ -53,6 +51,7 @@ void HelloTriangleApplication::initWindow() {
 void HelloTriangleApplication::initVulkan() {
   createInstance();
   setupDebugMessenger();
+  pickPhysicalDevice();
 }
 
 // -----------------------------------------------------------------------------
@@ -105,6 +104,50 @@ void HelloTriangleApplication::createInstance() {
   }
 
   m_dispatchLoaderDynamic = vk::DispatchLoaderDynamic{m_instance, vkGetInstanceProcAddr};
+}
+
+// -----------------------------------------------------------------------------
+void HelloTriangleApplication::pickPhysicalDevice() {
+  uint32_t deviceCount = 0;
+  throwOnFailure(m_instance.enumeratePhysicalDevices(&deviceCount, nullptr));
+  throwOnFailure(deviceCount>0, "Failed to find GPUs with Vulkan support");
+  std::vector<vk::PhysicalDevice> devices(deviceCount);
+  throwOnFailure(m_instance.enumeratePhysicalDevices(&deviceCount, devices.data()));
+  std::cout << "available physical devices:" << std::endl;
+  for (const auto& dev : devices) {
+    std::cout << '\t' << dev.getProperties().deviceName << std::endl;
+  }
+  auto devIterator = std::ranges::find_if(devices, isDeviceSuitable);
+  throwOnFailure(devIterator!=devices.end(), "Failed to find a suitable GPU");
+  m_physicalDevice = *devIterator;
+}
+
+// -----------------------------------------------------------------------------
+HelloTriangleApplication::QueueFamilyIndices
+HelloTriangleApplication::findQueueFamilies(vk::PhysicalDevice device) {
+  QueueFamilyIndices indices{};
+  std::vector<vk::QueueFamilyProperties> queueFamilies = device.getQueueFamilyProperties();
+  std::cout << "found " << queueFamilies.size() << " queue families" << std::endl;
+  auto hasGraphicsBit = [](vk::QueueFamilyProperties fam) -> bool {
+    return static_cast<bool>(fam.queueFlags & vk::QueueFlagBits::eGraphics);
+  };
+  auto queueIterator = std::ranges::find_if(queueFamilies, hasGraphicsBit);
+  if  (queueIterator!=queueFamilies.end()) {
+    indices.graphicsFamily = std::distance(queueFamilies.begin(), queueIterator);
+  }
+  return indices;
+}
+
+// -----------------------------------------------------------------------------
+bool HelloTriangleApplication::isDeviceSuitable(vk::PhysicalDevice device) {
+  /*
+  vk::PhysicalDeviceProperties deviceProperties = device.getProperties();
+  vk::PhysicalDeviceFeatures deviceFeatures = device.getFeatures();
+  if (deviceProperties.deviceType != vk::PhysicalDeviceType::eDiscreteGpu) {return false;}
+  if (deviceFeatures.geometryShader == VK_FALSE) {return false;}
+  */
+  QueueFamilyIndices indices = findQueueFamilies(device);
+  return indices.isComplete();
 }
 
 // -----------------------------------------------------------------------------
