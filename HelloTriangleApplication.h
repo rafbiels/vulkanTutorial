@@ -17,8 +17,10 @@ private:
   // --------------- private types -------------------------
   struct QueueFamilyIndices {
     std::optional<uint32_t> graphicsFamily;
+    std::optional<uint32_t> presentFamily;
     [[nodiscard]] constexpr bool isComplete() const {
-        return graphicsFamily.has_value();
+        return graphicsFamily.has_value() &&
+               presentFamily.has_value();
     }
   };
   // --------------- private methods -----------------------
@@ -29,12 +31,13 @@ private:
   void createInstance();
   void setupDebugMessenger();
   void cleanupDebugMessenger();
+  void createSurface();
   void pickPhysicalDevice();
   void createLogicalDevice();
+  QueueFamilyIndices findQueueFamilies(vk::PhysicalDevice device);
+  bool isDeviceSuitable(vk::PhysicalDevice device);
 
   // --------------- static private methods ----------------
-  static QueueFamilyIndices findQueueFamilies(vk::PhysicalDevice device);
-  static bool isDeviceSuitable(vk::PhysicalDevice device);
   static bool checkValidationLayerSupport();
   static std::vector<const char*> getRequiredExtensions();
   static vk::DebugUtilsMessengerCreateInfoEXT createDebugMessengerCreateInfo();
@@ -51,9 +54,11 @@ private:
   vk::Instance m_instance;
   vk::DispatchLoaderDynamic m_dispatchLoaderDynamic;
   vk::DebugUtilsMessengerEXT m_debugMessenger;
+  vk::SurfaceKHR m_surface;
   vk::PhysicalDevice m_physicalDevice;
   vk::Device m_device;
   vk::Queue m_graphicsQueue;
+  vk::Queue m_presentQueue;
 }; // class HelloTriangleApplication
 
 #endif // HELLOTRIANGLEAPPLICATION_H

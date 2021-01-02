@@ -3,6 +3,7 @@
 #include <algorithm>
 #include <array>
 #include <iostream>
+#include <set>
 #include <span>
 #include <stdexcept>
 #include <string>
@@ -51,6 +52,7 @@ void HelloTriangleApplication::initWindow() {
 void HelloTriangleApplication::initVulkan() {
   createInstance();
   setupDebugMessenger();
+  createSurface();
   pickPhysicalDevice();
   createLogicalDevice();
 }
@@ -66,6 +68,7 @@ void HelloTriangleApplication::mainLoop() {
 void HelloTriangleApplication::cleanup() {
   cleanupDebugMessenger();
   m_device.destroy();
+  m_instance.destroySurfaceKHR(m_surface);
   m_instance.destroy();
   glfwDestroyWindow(m_window);
   glfwTerminate();
@@ -110,6 +113,29 @@ void HelloTriangleApplication::createInstance() {
 }
 
 // -----------------------------------------------------------------------------
+void HelloTriangleApplication::setupDebugMessenger() {
+  if (!c_enableValidationLayers) {return;}
+  vk::DebugUtilsMessengerCreateInfoEXT createInfo = createDebugMessengerCreateInfo();
+  throwOnFailure(m_instance.createDebugUtilsMessengerEXT(
+    &createInfo, nullptr, &m_debugMessenger, m_dispatchLoaderDynamic));
+}
+
+// -----------------------------------------------------------------------------
+void HelloTriangleApplication::cleanupDebugMessenger() {
+  if (!c_enableValidationLayers) {return;}
+  m_instance.destroyDebugUtilsMessengerEXT(m_debugMessenger, nullptr, m_dispatchLoaderDynamic);
+}
+
+// -----------------------------------------------------------------------------
+void HelloTriangleApplication::createSurface() {
+  vk::SurfaceKHR::CType surface{};
+  throwOnFailure(static_cast<vk::Result>(
+                   glfwCreateWindowSurface(m_instance, m_window, nullptr, &surface)),
+                 "Failed to create window surface");
+  m_surface = surface;
+}
+
+// -----------------------------------------------------------------------------
 void HelloTriangleApplication::pickPhysicalDevice() {
   uint32_t deviceCount = 0;
   throwOnFailure(m_instance.enumeratePhysicalDevices(&deviceCount, nullptr));
@@ -120,7 +146,8 @@ void HelloTriangleApplication::pickPhysicalDevice() {
   for (const auto& dev : devices) {
     std::cout << '\t' << dev.getProperties().deviceName << std::endl;
   }
-  auto devIterator = std::ranges::find_if(devices, isDeviceSuitable);
+  auto suitable = [this](vk::PhysicalDevice d){return isDeviceSuitable(d);};
+  auto devIterator = std::ranges::find_if(devices, suitable);
   throwOnFailure(devIterator!=devices.end(), "Failed to find a suitable GPU");
   m_physicalDevice = *devIterator;
 }
@@ -128,23 +155,33 @@ void HelloTriangleApplication::pickPhysicalDevice() {
 // -----------------------------------------------------------------------------
 void HelloTriangleApplication::createLogicalDevice() {
   QueueFamilyIndices indices = findQueueFamilies(m_physicalDevice);
-  float queuePriority = 1.0F;
-  vk::DeviceQueueCreateInfo queueCreateInfo = {
-    .sType = vk::StructureType::eDeviceQueueCreateInfo,
-    .queueFamilyIndex = indices.graphicsFamily.value(),
-    .queueCount = 1,
-    .pQueuePriorities = &queuePriority
+  std::set<uint32_t> uniqueQueueFamilies = {
+    indices.graphicsFamily.value(),
+    indices.presentFamily.value()
   };
+  std::vector<vk::DeviceQueueCreateInfo> queueCreateInfos;
+  float queuePriority = 1.0F;
+  for (uint32_t queueFamily : uniqueQueueFamilies) {
+      vk::DeviceQueueCreateInfo queueCreateInfo = {
+        .sType = vk::StructureType::eDeviceQueueCreateInfo,
+        .queueFamilyIndex = queueFamily,
+        .queueCount = 1,
+        .pQueuePriorities = &queuePriority
+      };
+      queueCreateInfos.push_back(queueCreateInfo);
+  }
+
   vk::PhysicalDeviceFeatures deviceFeatures{};
   vk::DeviceCreateInfo createInfo = {
     .sType = vk::StructureType::eDeviceCreateInfo,
-    .queueCreateInfoCount = 1,
-    .pQueueCreateInfos = &queueCreateInfo,
+    .queueCreateInfoCount = static_cast<uint32_t>(queueCreateInfos.size()),
+    .pQueueCreateInfos = queueCreateInfos.data(),
     .pEnabledFeatures = &deviceFeatures
   };
   throwOnFailure(m_physicalDevice.createDevice(&createInfo, nullptr, &m_device),
                  "Failed to create logical device");
   m_device.getQueue(indices.graphicsFamily.value(), 0, &m_graphicsQueue);
+  m_device.getQueue(indices.presentFamily.value(), 0, &m_presentQueue);
 }
 
 // -----------------------------------------------------------------------------
@@ -156,10 +193,26 @@ HelloTriangleApplication::findQueueFamilies(vk::PhysicalDevice device) {
   auto hasGraphicsBit = [](vk::QueueFamilyProperties fam) -> bool {
     return static_cast<bool>(fam.queueFlags & vk::QueueFlagBits::eGraphics);
   };
-  auto queueIterator = std::ranges::find_if(queueFamilies, hasGraphicsBit);
-  if  (queueIterator!=queueFamilies.end()) {
-    indices.graphicsFamily = std::distance(queueFamilies.begin(), queueIterator);
+  auto hasSurfaceSupport = [&device, this](uint32_t famIndex) -> bool {
+    vk::Bool32 supported{VK_FALSE};
+    vk::Result result = device.getSurfaceSupportKHR(famIndex, m_surface, &supported);
+    return result == vk::Result::eSuccess && supported == VK_TRUE;
+  };
+
+  for (size_t famIndex=0; famIndex<queueFamilies.size(); ++famIndex) {
+    if (!indices.graphicsFamily.has_value() &&
+        hasGraphicsBit(queueFamilies[famIndex])) {
+      indices.graphicsFamily = famIndex;
+      std::cout << "\tfamily " << famIndex << " supports drawing" << std::endl;
+    }
+    if (!indices.presentFamily.has_value() &&
+        hasSurfaceSupport(famIndex)) {
+      indices.presentFamily = famIndex;
+      std::cout << "\tfamily " << famIndex << " supports presentation" << std::endl;
+    }
+    if (indices.isComplete()) {break;}
   }
+
   return indices;
 }
 
@@ -277,18 +330,4 @@ vk::DebugUtilsMessengerCreateInfoEXT HelloTriangleApplication::createDebugMessen
     .pfnUserCallback = debugCallback,
     .pUserData = nullptr
   };
-}
-
-// -----------------------------------------------------------------------------
-void HelloTriangleApplication::setupDebugMessenger() {
-  if (!c_enableValidationLayers) {return;}
-  vk::DebugUtilsMessengerCreateInfoEXT createInfo = createDebugMessengerCreateInfo();
-  throwOnFailure(m_instance.createDebugUtilsMessengerEXT(
-    &createInfo, nullptr, &m_debugMessenger, m_dispatchLoaderDynamic));
-}
-
-// -----------------------------------------------------------------------------
-void HelloTriangleApplication::cleanupDebugMessenger() {
-  if (!c_enableValidationLayers) {return;}
-  m_instance.destroyDebugUtilsMessengerEXT(m_debugMessenger, nullptr, m_dispatchLoaderDynamic);
 }
