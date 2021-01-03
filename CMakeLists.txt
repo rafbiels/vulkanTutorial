@@ -27,7 +27,9 @@ target_link_libraries(myVulkanApp
 
 foreach(SHADER_NAME vert frag)
   add_custom_command(OUTPUT ${SHADER_NAME}.spv
-  DEPENDS ${CMAKE_CURRENT_SOURCE_DIR}/shaders/shader.${SHADER_NAME}
-  COMMAND glslc ${CMAKE_CURRENT_SOURCE_DIR}/shaders/shader.${SHADER_NAME} -o ${CMAKE_BINARY_DIR}/${SHADER_NAME}.spv)
+                     DEPENDS ${CMAKE_CURRENT_SOURCE_DIR}/shaders/shader.${SHADER_NAME}
+                     COMMAND ${CMAKE_COMMAND} -E make_directory ${CMAKE_BINARY_DIR}/shaders
+                     COMMAND glslc ${CMAKE_CURRENT_SOURCE_DIR}/shaders/shader.${SHADER_NAME}
+                             -o ${CMAKE_BINARY_DIR}/shaders/${SHADER_NAME}.spv)
 endforeach()
 add_custom_target(shaders ALL DEPENDS vert.spv frag.spv)

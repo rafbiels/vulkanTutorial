@@ -2,6 +2,7 @@
 
 #include <algorithm>
 #include <array>
+#include <fstream>
 #include <iostream>
 #include <set>
 #include <span>
@@ -268,7 +269,39 @@ void HelloTriangleApplication::createImageViews() {
 
 // -----------------------------------------------------------------------------
 void HelloTriangleApplication::createGraphicsPipeline() {
+  std::vector<char> vertShaderCode = readFile("shaders/vert.spv");
+  std::vector<char> fragShaderCode = readFile("shaders/frag.spv");
 
+  vk::ShaderModule vertShaderModule = createShaderModule(std::move(vertShaderCode));
+  vk::ShaderModule fragShaderModule = createShaderModule(std::move(fragShaderCode));
+
+  vk::PipelineShaderStageCreateInfo vertShaderStageInfo = {
+    .sType = vk::StructureType::ePipelineShaderStageCreateInfo,
+    .stage = vk::ShaderStageFlagBits::eVertex,
+    .module = vertShaderModule,
+    .pName = "main"
+  };
+  vk::PipelineShaderStageCreateInfo fragShaderStageInfo = {
+    .sType = vk::StructureType::ePipelineShaderStageCreateInfo,
+    .stage = vk::ShaderStageFlagBits::eFragment,
+    .module = fragShaderModule,
+    .pName = "main"
+  };
+
+  auto shaderStages = std::array{vertShaderStageInfo, fragShaderStageInfo};
+
+  m_device.destroyShaderModule(vertShaderModule);
+  m_device.destroyShaderModule(fragShaderModule);
+}
+
+// -----------------------------------------------------------------------------
+vk::ShaderModule HelloTriangleApplication::createShaderModule(std::vector<char> code) {
+  vk::ShaderModuleCreateInfo createInfo = {
+    .sType = vk::StructureType::eShaderModuleCreateInfo,
+    .codeSize = code.size(),
+    .pCode = reinterpret_cast<const uint32_t*>(code.data())
+  };
+  return m_device.createShaderModule(createInfo);
 }
 
 // -----------------------------------------------------------------------------
@@ -457,6 +490,19 @@ std::vector<const char*> HelloTriangleApplication::getRequiredExtensions() {
   }
 
   return requiredExtensions;
+}
+
+// -----------------------------------------------------------------------------
+std::vector<char> HelloTriangleApplication::readFile(const std::string& filename) {
+  std::ifstream file(filename, std::ios::ate | std::ios::binary);
+  throwOnFailure(file.is_open(), "Failed to open file");
+  const size_t fileSize = static_cast<size_t>(file.tellg());
+  std::vector<char> buffer(fileSize);
+  file.seekg(0);
+  file.read(buffer.data(), fileSize);
+  file.close();
+  std::cout << "Loaded " << buffer.size() << " bytes from file " << filename << std::endl;
+  return buffer;
 }
 
 // -----------------------------------------------------------------------------

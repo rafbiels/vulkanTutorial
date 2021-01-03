@@ -42,6 +42,7 @@ private:
   void createSwapChain();
   void createImageViews();
   void createGraphicsPipeline();
+  vk::ShaderModule createShaderModule(std::vector<char> code);
   QueueFamilyIndices findQueueFamilies(vk::PhysicalDevice device);
   bool isDeviceSuitable(vk::PhysicalDevice device);
   SwapChainSupportDetails querySwapChainSupport(vk::PhysicalDevice device);
@@ -51,6 +52,7 @@ private:
   static bool checkValidationLayerSupport();
   static bool checkDeviceExtensionSupport(vk::PhysicalDevice device);
   static std::vector<const char*> getRequiredExtensions();
+  static std::vector<char> readFile(const std::string& filename);
   static vk::SurfaceFormatKHR chooseSwapSurfaceFormat(
     const std::vector<vk::SurfaceFormatKHR>& availableFormats);
   static vk::PresentModeKHR chooseSwapPresentMode(
