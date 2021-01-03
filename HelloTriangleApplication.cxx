@@ -72,6 +72,9 @@ void HelloTriangleApplication::mainLoop() {
 // -----------------------------------------------------------------------------
 void HelloTriangleApplication::cleanup() {
   cleanupDebugMessenger();
+  for (vk::ImageView view: m_swapChainImageViews) {
+    m_device.destroyImageView(view);
+  }
   m_device.destroySwapchainKHR(m_swapChain);
   m_device.destroy();
   m_instance.destroySurfaceKHR(m_surface);
