@@ -41,6 +41,7 @@ private:
   void createLogicalDevice();
   void createSwapChain();
   void createImageViews();
+  void createRenderPass();
   void createGraphicsPipeline();
   vk::ShaderModule createShaderModule(std::vector<char> code);
   QueueFamilyIndices findQueueFamilies(vk::PhysicalDevice device);
@@ -81,6 +82,7 @@ private:
   vk::Format m_swapChainImageFormat;
   vk::Extent2D m_swapChainExtent;
   std::vector<vk::ImageView> m_swapChainImageViews;
+  vk::RenderPass m_renderPass;
   vk::PipelineLayout m_pipelineLayout;
 }; // class HelloTriangleApplication
 

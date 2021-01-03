@@ -61,6 +61,7 @@ void HelloTriangleApplication::initVulkan() {
   createLogicalDevice();
   createSwapChain();
   createImageViews();
+  createRenderPass();
   createGraphicsPipeline();
 }
 
@@ -78,6 +79,7 @@ void HelloTriangleApplication::cleanup() {
     m_device.destroyImageView(view);
   }
   m_device.destroyPipelineLayout(m_pipelineLayout);
+  m_device.destroyRenderPass(m_renderPass);
   m_device.destroySwapchainKHR(m_swapChain);
   m_device.destroy();
   m_instance.destroySurfaceKHR(m_surface);
@@ -269,6 +271,37 @@ void HelloTriangleApplication::createImageViews() {
 }
 
 // -----------------------------------------------------------------------------
+void HelloTriangleApplication::createRenderPass() {
+  vk::AttachmentDescription colourAttachment = {
+    .format = m_swapChainImageFormat,
+    .samples = vk::SampleCountFlagBits::e1,
+    .loadOp = vk::AttachmentLoadOp::eClear,
+    .storeOp = vk::AttachmentStoreOp::eStore,
+    .stencilLoadOp = vk::AttachmentLoadOp::eDontCare,
+    .stencilStoreOp = vk::AttachmentStoreOp::eDontCare,
+    .initialLayout = vk::ImageLayout::eUndefined,
+    .finalLayout = vk::ImageLayout::ePresentSrcKHR
+  };
+  vk::AttachmentReference colourAttachmentRef = {
+    .attachment = 0,
+    .layout = vk::ImageLayout::eColorAttachmentOptimal
+  };
+  vk::SubpassDescription subpass = {
+    .pipelineBindPoint = vk::PipelineBindPoint::eGraphics,
+    .colorAttachmentCount = 1,
+    .pColorAttachments = &colourAttachmentRef
+  };
+  vk::RenderPassCreateInfo renderPassInfo = {
+    .sType = vk::StructureType::eRenderPassCreateInfo,
+    .attachmentCount = 1,
+    .pAttachments = &colourAttachment,
+    .subpassCount = 1,
+    .pSubpasses = &subpass
+  };
+  m_renderPass = m_device.createRenderPass(renderPassInfo);
+}
+
+// -----------------------------------------------------------------------------
 void HelloTriangleApplication::createGraphicsPipeline() {
   std::vector<char> vertShaderCode = readFile("shaders/vert.spv");
   std::vector<char> fragShaderCode = readFile("shaders/frag.spv");
@@ -349,9 +382,9 @@ void HelloTriangleApplication::createGraphicsPipeline() {
 
   // Colour blending
   vk::PipelineColorBlendAttachmentState colourBlendAttachment = {
+    .blendEnable = VK_FALSE,
     .colorWriteMask = vk::ColorComponentFlagBits::eR | vk::ColorComponentFlagBits::eG |
-                      vk::ColorComponentFlagBits::eB | vk::ColorComponentFlagBits::eA,
-    .blendEnable = VK_FALSE
+                      vk::ColorComponentFlagBits::eB | vk::ColorComponentFlagBits::eA
   };
   vk::PipelineColorBlendStateCreateInfo colourBlending = {
     .sType = vk::StructureType::ePipelineColorBlendStateCreateInfo,
