@@ -78,6 +78,7 @@ void HelloTriangleApplication::cleanup() {
   for (vk::ImageView view: m_swapChainImageViews) {
     m_device.destroyImageView(view);
   }
+  m_device.destroyPipeline(m_graphicsPipeline);
   m_device.destroyPipelineLayout(m_pipelineLayout);
   m_device.destroyRenderPass(m_renderPass);
   m_device.destroySwapchainKHR(m_swapChain);
@@ -402,6 +403,25 @@ void HelloTriangleApplication::createGraphicsPipeline() {
     .pushConstantRangeCount = 0
   };
   m_pipelineLayout = m_device.createPipelineLayout(pipelineLayoutInfo);
+
+  // ---------------------------------------------
+  // Create the pipeline
+  // ---------------------------------------------
+  vk::GraphicsPipelineCreateInfo pipelineInfo = {
+    .sType = vk::StructureType::eGraphicsPipelineCreateInfo,
+    .stageCount = 2,
+    .pStages = shaderStages.data(),
+    .pVertexInputState = &vertexInputInfo,
+    .pInputAssemblyState = &inputAssembly,
+    .pViewportState = &viewportState,
+    .pRasterizationState = &rasteriser,
+    .pMultisampleState = &multisampling,
+    .pColorBlendState = &colourBlending,
+    .layout = m_pipelineLayout,
+    .renderPass = m_renderPass,
+    .subpass = 0
+  };
+  m_graphicsPipeline = m_device.createGraphicsPipeline(nullptr, pipelineInfo).value;
 
   // ---------------------------------------------
   // Clean-up
