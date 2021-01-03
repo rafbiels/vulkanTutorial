@@ -41,6 +41,7 @@ private:
   void createLogicalDevice();
   void createSwapChain();
   void createImageViews();
+  void createGraphicsPipeline();
   QueueFamilyIndices findQueueFamilies(vk::PhysicalDevice device);
   bool isDeviceSuitable(vk::PhysicalDevice device);
   SwapChainSupportDetails querySwapChainSupport(vk::PhysicalDevice device);

@@ -24,3 +24,10 @@ add_executable(myVulkanApp main.cxx)
 target_link_libraries(myVulkanApp
                       PUBLIC
                       HelloTriangleApplication)
+
+foreach(SHADER_NAME vert frag)
+  add_custom_command(OUTPUT ${SHADER_NAME}.spv
+  DEPENDS ${CMAKE_CURRENT_SOURCE_DIR}/shaders/shader.${SHADER_NAME}
+  COMMAND glslc ${CMAKE_CURRENT_SOURCE_DIR}/shaders/shader.${SHADER_NAME} -o ${CMAKE_BINARY_DIR}/${SHADER_NAME}.spv)
+endforeach()
+add_custom_target(shaders ALL DEPENDS vert.spv frag.spv)
