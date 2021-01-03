@@ -63,6 +63,7 @@ void HelloTriangleApplication::initVulkan() {
   createImageViews();
   createRenderPass();
   createGraphicsPipeline();
+  createFramebuffers();
 }
 
 // -----------------------------------------------------------------------------
@@ -75,6 +76,9 @@ void HelloTriangleApplication::mainLoop() {
 // -----------------------------------------------------------------------------
 void HelloTriangleApplication::cleanup() {
   cleanupDebugMessenger();
+  for (vk::Framebuffer framebuffer : m_swapChainFramebuffers) {
+    m_device.destroyFramebuffer(framebuffer);
+  }
   for (vk::ImageView view: m_swapChainImageViews) {
     m_device.destroyImageView(view);
   }
@@ -428,6 +432,22 @@ void HelloTriangleApplication::createGraphicsPipeline() {
   // ---------------------------------------------
   m_device.destroyShaderModule(vertShaderModule);
   m_device.destroyShaderModule(fragShaderModule);
+}
+
+// -----------------------------------------------------------------------------
+void HelloTriangleApplication::createFramebuffers() {
+  for (const vk::ImageView& imageView : m_swapChainImageViews) {
+    vk::FramebufferCreateInfo framebufferInfo = {
+      .sType = vk::StructureType::eFramebufferCreateInfo,
+      .renderPass = m_renderPass,
+      .attachmentCount = 1,
+      .pAttachments = &imageView,
+      .width = m_swapChainExtent.width,
+      .height = m_swapChainExtent.height,
+      .layers = 1
+    };
+    m_swapChainFramebuffers.push_back(m_device.createFramebuffer(framebufferInfo));
+  }
 }
 
 // -----------------------------------------------------------------------------
