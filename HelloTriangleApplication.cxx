@@ -77,6 +77,7 @@ void HelloTriangleApplication::cleanup() {
   for (vk::ImageView view: m_swapChainImageViews) {
     m_device.destroyImageView(view);
   }
+  m_device.destroyPipelineLayout(m_pipelineLayout);
   m_device.destroySwapchainKHR(m_swapChain);
   m_device.destroy();
   m_instance.destroySurfaceKHR(m_surface);
@@ -272,6 +273,9 @@ void HelloTriangleApplication::createGraphicsPipeline() {
   std::vector<char> vertShaderCode = readFile("shaders/vert.spv");
   std::vector<char> fragShaderCode = readFile("shaders/frag.spv");
 
+  // ---------------------------------------------
+  // Shader modules
+  // ---------------------------------------------
   vk::ShaderModule vertShaderModule = createShaderModule(std::move(vertShaderCode));
   vk::ShaderModule fragShaderModule = createShaderModule(std::move(fragShaderCode));
 
@@ -290,6 +294,85 @@ void HelloTriangleApplication::createGraphicsPipeline() {
 
   auto shaderStages = std::array{vertShaderStageInfo, fragShaderStageInfo};
 
+  // ---------------------------------------------
+  // Fixed-function inputs
+  // ---------------------------------------------
+  // Vertex input assembly
+  vk::PipelineVertexInputStateCreateInfo vertexInputInfo = {
+    .sType = vk::StructureType::ePipelineVertexInputStateCreateInfo,
+    .vertexBindingDescriptionCount = 0,
+    .vertexAttributeDescriptionCount = 0
+  };
+  vk::PipelineInputAssemblyStateCreateInfo inputAssembly = {
+    .sType = vk::StructureType::ePipelineInputAssemblyStateCreateInfo,
+    .topology = vk::PrimitiveTopology::eTriangleList,
+    .primitiveRestartEnable = VK_FALSE
+  };
+
+  // Viewports and scissors
+  vk::Viewport viewport = {
+    .x = 0.0F,
+    .y = 0.0F,
+    .width = static_cast<float>(m_swapChainExtent.width),
+    .height = static_cast<float>(m_swapChainExtent.height),
+    .minDepth = 0.0F,
+    .maxDepth = 1.0F
+  };
+  vk::Rect2D scissor = {
+    .offset = {0, 0},
+    .extent = m_swapChainExtent
+  };
+  vk::PipelineViewportStateCreateInfo viewportState = {
+    .sType = vk::StructureType::ePipelineViewportStateCreateInfo,
+    .viewportCount = 1,
+    .pViewports = &viewport,
+    .scissorCount = 1,
+    .pScissors = &scissor
+  };
+
+  // Rasteriser
+  vk::PipelineRasterizationStateCreateInfo rasteriser = {
+    .sType = vk::StructureType::ePipelineRasterizationStateCreateInfo,
+    .depthClampEnable = VK_FALSE,
+    .rasterizerDiscardEnable = VK_FALSE,
+    .polygonMode = vk::PolygonMode::eFill,
+    .cullMode = vk::CullModeFlagBits::eBack,
+    .frontFace = vk::FrontFace::eClockwise,
+    .depthBiasEnable = VK_FALSE,
+    .lineWidth = 1.0F
+  };
+  vk::PipelineMultisampleStateCreateInfo multisampling = {
+    .sType = vk::StructureType::ePipelineMultisampleStateCreateInfo,
+    .rasterizationSamples = vk::SampleCountFlagBits::e1,
+    .sampleShadingEnable = VK_FALSE,
+  };
+
+  // Colour blending
+  vk::PipelineColorBlendAttachmentState colourBlendAttachment = {
+    .colorWriteMask = vk::ColorComponentFlagBits::eR | vk::ColorComponentFlagBits::eG |
+                      vk::ColorComponentFlagBits::eB | vk::ColorComponentFlagBits::eA,
+    .blendEnable = VK_FALSE
+  };
+  vk::PipelineColorBlendStateCreateInfo colourBlending = {
+    .sType = vk::StructureType::ePipelineColorBlendStateCreateInfo,
+    .logicOpEnable = VK_FALSE,
+    .attachmentCount = 1,
+    .pAttachments = &colourBlendAttachment
+  };
+
+  // ---------------------------------------------
+  // Pipeline layout
+  // ---------------------------------------------
+  vk::PipelineLayoutCreateInfo pipelineLayoutInfo = {
+    .sType = vk::StructureType::ePipelineLayoutCreateInfo,
+    .setLayoutCount = 0,
+    .pushConstantRangeCount = 0
+  };
+  m_pipelineLayout = m_device.createPipelineLayout(pipelineLayoutInfo);
+
+  // ---------------------------------------------
+  // Clean-up
+  // ---------------------------------------------
   m_device.destroyShaderModule(vertShaderModule);
   m_device.destroyShaderModule(fragShaderModule);
 }

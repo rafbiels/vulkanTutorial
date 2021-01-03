@@ -81,6 +81,7 @@ private:
   vk::Format m_swapChainImageFormat;
   vk::Extent2D m_swapChainExtent;
   std::vector<vk::ImageView> m_swapChainImageViews;
+  vk::PipelineLayout m_pipelineLayout;
 }; // class HelloTriangleApplication
 
 #endif // HELLOTRIANGLEAPPLICATION_H
