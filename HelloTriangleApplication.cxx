@@ -64,6 +64,8 @@ void HelloTriangleApplication::initVulkan() {
   createRenderPass();
   createGraphicsPipeline();
   createFramebuffers();
+  createCommandPool();
+  createCommandBuffers();
 }
 
 // -----------------------------------------------------------------------------
@@ -75,7 +77,7 @@ void HelloTriangleApplication::mainLoop() {
 
 // -----------------------------------------------------------------------------
 void HelloTriangleApplication::cleanup() {
-  cleanupDebugMessenger();
+  m_device.destroyCommandPool(m_commandPool);
   for (vk::Framebuffer framebuffer : m_swapChainFramebuffers) {
     m_device.destroyFramebuffer(framebuffer);
   }
@@ -87,6 +89,7 @@ void HelloTriangleApplication::cleanup() {
   m_device.destroyRenderPass(m_renderPass);
   m_device.destroySwapchainKHR(m_swapChain);
   m_device.destroy();
+  cleanupDebugMessenger();
   m_instance.destroySurfaceKHR(m_surface);
   m_instance.destroy();
   glfwDestroyWindow(m_window);
@@ -447,6 +450,52 @@ void HelloTriangleApplication::createFramebuffers() {
       .layers = 1
     };
     m_swapChainFramebuffers.push_back(m_device.createFramebuffer(framebufferInfo));
+  }
+}
+
+// -----------------------------------------------------------------------------
+void HelloTriangleApplication::createCommandPool() {
+  QueueFamilyIndices queueFamilyIndices = findQueueFamilies(m_physicalDevice);
+  vk::CommandPoolCreateInfo poolInfo = {
+    .sType = vk::StructureType::eCommandPoolCreateInfo,
+    .queueFamilyIndex = queueFamilyIndices.graphicsFamily.value()
+  };
+  m_commandPool = m_device.createCommandPool(poolInfo);
+}
+
+// -----------------------------------------------------------------------------
+void HelloTriangleApplication::createCommandBuffers() {
+  // Allocate
+  vk::CommandBufferAllocateInfo allocInfo = {
+    .sType = vk::StructureType::eCommandBufferAllocateInfo,
+    .commandPool = m_commandPool,
+    .level = vk::CommandBufferLevel::ePrimary,
+    .commandBufferCount = static_cast<uint32_t>(m_swapChainFramebuffers.size())
+  };
+  m_commandBuffers = m_device.allocateCommandBuffers(allocInfo);
+
+  // Fill
+  size_t iBuffer{0};
+  for (vk::CommandBuffer buffer : m_commandBuffers) {
+    buffer.begin(vk::CommandBufferBeginInfo{});
+    vk::ClearValue clearColor = vk::ClearColorValue(std::array{0.0F, 0.0F, 0.0F, 1.0F});
+    vk::RenderPassBeginInfo renderPassInfo = {
+      .sType = vk::StructureType::eRenderPassBeginInfo,
+      .renderPass = m_renderPass,
+      .framebuffer = m_swapChainFramebuffers[iBuffer],
+      .renderArea = vk::Rect2D{
+        .offset = {0, 0},
+        .extent = m_swapChainExtent
+      },
+      .clearValueCount = 1,
+      .pClearValues = &clearColor
+    };
+    buffer.beginRenderPass(renderPassInfo, vk::SubpassContents::eInline);
+    buffer.bindPipeline(vk::PipelineBindPoint::eGraphics, m_graphicsPipeline);
+    buffer.draw(3, 1, 0, 0);
+    buffer.endRenderPass();
+    buffer.end();
+    ++iBuffer;
   }
 }
 

@@ -44,6 +44,8 @@ private:
   void createRenderPass();
   void createGraphicsPipeline();
   void createFramebuffers();
+  void createCommandPool();
+  void createCommandBuffers();
   vk::ShaderModule createShaderModule(std::vector<char> code);
   QueueFamilyIndices findQueueFamilies(vk::PhysicalDevice device);
   bool isDeviceSuitable(vk::PhysicalDevice device);
@@ -87,6 +89,8 @@ private:
   vk::PipelineLayout m_pipelineLayout;
   vk::Pipeline m_graphicsPipeline;
   std::vector<vk::Framebuffer> m_swapChainFramebuffers;
+  vk::CommandPool m_commandPool;
+  std::vector<vk::CommandBuffer> m_commandBuffers;
 }; // class HelloTriangleApplication
 
 #endif // HELLOTRIANGLEAPPLICATION_H
