@@ -14,6 +14,7 @@
 namespace {
   // Constants
   constexpr int c_windowWidth{800}, c_windowHeight{600};
+  constexpr size_t c_maxFramesInFlight{2};
   constexpr std::array<const char*,1> c_validationLayers = {
     "VK_LAYER_KHRONOS_validation"
   };
@@ -67,7 +68,7 @@ void HelloTriangleApplication::initVulkan() {
   createFramebuffers();
   createCommandPool();
   createCommandBuffers();
-  createSemaphores();
+  createSyncObjects();
 }
 
 // -----------------------------------------------------------------------------
@@ -81,8 +82,15 @@ void HelloTriangleApplication::mainLoop() {
 
 // -----------------------------------------------------------------------------
 void HelloTriangleApplication::cleanup() {
-  m_device.destroySemaphore(m_renderFinishedSemaphore);
-  m_device.destroySemaphore(m_imageAvailableSemaphore);
+  for (vk::Fence fence : m_inFlightFences) {
+    m_device.destroyFence(fence);
+  }
+  for (vk::Semaphore semaphore : m_renderFinishedSemaphores) {
+    m_device.destroySemaphore(semaphore);
+  }
+  for (vk::Semaphore semaphore : m_imageAvailableSemaphores) {
+    m_device.destroySemaphore(semaphore);
+  }
   m_device.destroyCommandPool(m_commandPool);
   for (vk::Framebuffer framebuffer : m_swapChainFramebuffers) {
     m_device.destroyFramebuffer(framebuffer);
@@ -516,41 +524,76 @@ void HelloTriangleApplication::createCommandBuffers() {
 }
 
 // -----------------------------------------------------------------------------
-void HelloTriangleApplication::createSemaphores() {
-  m_imageAvailableSemaphore = m_device.createSemaphore(vk::SemaphoreCreateInfo{});
-  m_renderFinishedSemaphore = m_device.createSemaphore(vk::SemaphoreCreateInfo{});
+void HelloTriangleApplication::createSyncObjects() {
+  vk::FenceCreateInfo fenceInfo = {
+    .sType = vk::StructureType::eFenceCreateInfo,
+    .flags = vk::FenceCreateFlagBits::eSignaled
+  };
+  for (size_t i=0; i<c_maxFramesInFlight; ++i) {
+    m_imageAvailableSemaphores.push_back(
+      m_device.createSemaphore(vk::SemaphoreCreateInfo{}));
+    m_renderFinishedSemaphores.push_back(
+      m_device.createSemaphore(vk::SemaphoreCreateInfo{}));
+    m_inFlightFences.push_back(m_device.createFence(fenceInfo));
+  }
+  m_imagesInFlight.resize(m_swapChainImages.size(), nullptr);
 }
 
 // -----------------------------------------------------------------------------
 void HelloTriangleApplication::drawFrame() {
-  uint32_t imageIndex = m_device.acquireNextImageKHR(m_swapChain,
-                                                     std::numeric_limits<uint64_t>::max(),
-                                                     m_imageAvailableSemaphore).value;
+  static size_t currentFrame{0};
+  throwOnFailure(m_device.waitForFences(
+    1,
+    &m_inFlightFences[currentFrame],
+    VK_TRUE,
+    std::numeric_limits<uint64_t>::max()));
+
+  uint32_t imageIndex = m_device.acquireNextImageKHR(
+    m_swapChain,
+    std::numeric_limits<uint64_t>::max(),
+    m_imageAvailableSemaphores[currentFrame]
+  ).value;
+
+  // Check if a previous frame is using this image (i.e. there is its fence to wait on)
+  if (m_imagesInFlight[imageIndex] != vk::Fence{nullptr}) {
+    throwOnFailure(m_device.waitForFences(
+      1,
+      &m_imagesInFlight[imageIndex],
+      VK_TRUE,
+      std::numeric_limits<uint64_t>::max()));
+  }
+  // Mark the image as now being in use by this frame
+  m_imagesInFlight[imageIndex] = m_inFlightFences[currentFrame];
+
+  // Submit draw command
   vk::PipelineStageFlags waitStage = vk::PipelineStageFlagBits::eColorAttachmentOutput;
   vk::SubmitInfo submitInfo = {
     .sType = vk::StructureType::eSubmitInfo,
     .waitSemaphoreCount = 1,
-    .pWaitSemaphores = &m_imageAvailableSemaphore,
+    .pWaitSemaphores = &m_imageAvailableSemaphores[currentFrame],
     .pWaitDstStageMask = &waitStage,
     .commandBufferCount = 1,
     .pCommandBuffers = &m_commandBuffers[imageIndex],
     .signalSemaphoreCount = 1,
-    .pSignalSemaphores = &m_renderFinishedSemaphore
+    .pSignalSemaphores = &m_renderFinishedSemaphores[currentFrame]
   };
-  throwOnFailure(m_graphicsQueue.submit(1, &submitInfo, nullptr),
+  throwOnFailure(m_device.resetFences(1, &m_inFlightFences[currentFrame]));
+  throwOnFailure(m_graphicsQueue.submit(1, &submitInfo, m_inFlightFences[currentFrame]),
                  "Failed to submit draw command buffer");
 
+  // Submit present command
   vk::PresentInfoKHR presentInfo = {
     .sType = vk::StructureType::ePresentInfoKHR,
     .waitSemaphoreCount = 1,
-    .pWaitSemaphores = &m_renderFinishedSemaphore,
+    .pWaitSemaphores = &m_renderFinishedSemaphores[currentFrame],
     .swapchainCount = 1,
     .pSwapchains = &m_swapChain,
     .pImageIndices = &imageIndex
   };
   throwOnFailure(m_presentQueue.presentKHR(presentInfo),
                  "Failed to present the image");
-  m_presentQueue.waitIdle();
+
+  currentFrame = (currentFrame + 1) % c_maxFramesInFlight;
 }
 
 // -----------------------------------------------------------------------------
