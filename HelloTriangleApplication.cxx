@@ -117,7 +117,6 @@ void HelloTriangleApplication::createInstance() {
   }
 
   vk::ApplicationInfo appInfo = {
-    .sType = vk::StructureType::eApplicationInfo,
     .pApplicationName = "Hello Triangle",
     .applicationVersion = VK_MAKE_VERSION(1, 0, 0),
     .pEngineName = "No Engine",
@@ -132,7 +131,6 @@ void HelloTriangleApplication::createInstance() {
     debugCreateInfo = createDebugMessengerCreateInfo();
   };
   vk::InstanceCreateInfo createInfo = {
-    .sType = vk::StructureType::eInstanceCreateInfo,
     .pNext = (c_enableValidationLayers ? &debugCreateInfo : nullptr),
     .pApplicationInfo = &appInfo,
     .enabledLayerCount = static_cast<uint32_t>(c_enableValidationLayers ?
@@ -199,7 +197,6 @@ void HelloTriangleApplication::createLogicalDevice() {
   float queuePriority = 1.0F;
   for (uint32_t queueFamily : uniqueQueueFamilies) {
       vk::DeviceQueueCreateInfo queueCreateInfo = {
-        .sType = vk::StructureType::eDeviceQueueCreateInfo,
         .queueFamilyIndex = queueFamily,
         .queueCount = 1,
         .pQueuePriorities = &queuePriority
@@ -209,7 +206,6 @@ void HelloTriangleApplication::createLogicalDevice() {
 
   vk::PhysicalDeviceFeatures deviceFeatures{};
   vk::DeviceCreateInfo createInfo = {
-    .sType = vk::StructureType::eDeviceCreateInfo,
     .queueCreateInfoCount = static_cast<uint32_t>(queueCreateInfos.size()),
     .pQueueCreateInfos = queueCreateInfos.data(),
     .enabledExtensionCount = static_cast<uint32_t>(c_deviceExtensions.size()),
@@ -243,7 +239,6 @@ void HelloTriangleApplication::createSwapChain() {
                                                    indices.presentFamily.value()};
 
   vk::SwapchainCreateInfoKHR createInfo = {
-    .sType = vk::StructureType::eSwapchainCreateInfoKHR,
     .surface = m_surface,
     .minImageCount = imageCount,
     .imageFormat = surfaceFormat.format,
@@ -270,7 +265,6 @@ void HelloTriangleApplication::createImageViews() {
   m_swapChainImageViews.reserve(m_swapChainImages.size());
   for (const vk::Image image : m_swapChainImages) {
     vk::ImageViewCreateInfo createInfo = {
-      .sType = vk::StructureType::eImageViewCreateInfo,
       .image = image,
       .viewType = vk::ImageViewType::e2D,
       .format = m_swapChainImageFormat,
@@ -322,7 +316,6 @@ void HelloTriangleApplication::createRenderPass() {
     .dstAccessMask = vk::AccessFlagBits::eColorAttachmentWrite
   };
   vk::RenderPassCreateInfo renderPassInfo = {
-    .sType = vk::StructureType::eRenderPassCreateInfo,
     .attachmentCount = 1,
     .pAttachments = &colourAttachment,
     .subpassCount = 1,
@@ -345,13 +338,11 @@ void HelloTriangleApplication::createGraphicsPipeline() {
   vk::ShaderModule fragShaderModule = createShaderModule(std::move(fragShaderCode));
 
   vk::PipelineShaderStageCreateInfo vertShaderStageInfo = {
-    .sType = vk::StructureType::ePipelineShaderStageCreateInfo,
     .stage = vk::ShaderStageFlagBits::eVertex,
     .module = vertShaderModule,
     .pName = "main"
   };
   vk::PipelineShaderStageCreateInfo fragShaderStageInfo = {
-    .sType = vk::StructureType::ePipelineShaderStageCreateInfo,
     .stage = vk::ShaderStageFlagBits::eFragment,
     .module = fragShaderModule,
     .pName = "main"
@@ -364,12 +355,10 @@ void HelloTriangleApplication::createGraphicsPipeline() {
   // ---------------------------------------------
   // Vertex input assembly
   vk::PipelineVertexInputStateCreateInfo vertexInputInfo = {
-    .sType = vk::StructureType::ePipelineVertexInputStateCreateInfo,
     .vertexBindingDescriptionCount = 0,
     .vertexAttributeDescriptionCount = 0
   };
   vk::PipelineInputAssemblyStateCreateInfo inputAssembly = {
-    .sType = vk::StructureType::ePipelineInputAssemblyStateCreateInfo,
     .topology = vk::PrimitiveTopology::eTriangleList,
     .primitiveRestartEnable = VK_FALSE
   };
@@ -388,7 +377,6 @@ void HelloTriangleApplication::createGraphicsPipeline() {
     .extent = m_swapChainExtent
   };
   vk::PipelineViewportStateCreateInfo viewportState = {
-    .sType = vk::StructureType::ePipelineViewportStateCreateInfo,
     .viewportCount = 1,
     .pViewports = &viewport,
     .scissorCount = 1,
@@ -397,7 +385,6 @@ void HelloTriangleApplication::createGraphicsPipeline() {
 
   // Rasteriser
   vk::PipelineRasterizationStateCreateInfo rasteriser = {
-    .sType = vk::StructureType::ePipelineRasterizationStateCreateInfo,
     .depthClampEnable = VK_FALSE,
     .rasterizerDiscardEnable = VK_FALSE,
     .polygonMode = vk::PolygonMode::eFill,
@@ -407,7 +394,6 @@ void HelloTriangleApplication::createGraphicsPipeline() {
     .lineWidth = 1.0F
   };
   vk::PipelineMultisampleStateCreateInfo multisampling = {
-    .sType = vk::StructureType::ePipelineMultisampleStateCreateInfo,
     .rasterizationSamples = vk::SampleCountFlagBits::e1,
     .sampleShadingEnable = VK_FALSE,
   };
@@ -419,7 +405,6 @@ void HelloTriangleApplication::createGraphicsPipeline() {
                       vk::ColorComponentFlagBits::eB | vk::ColorComponentFlagBits::eA
   };
   vk::PipelineColorBlendStateCreateInfo colourBlending = {
-    .sType = vk::StructureType::ePipelineColorBlendStateCreateInfo,
     .logicOpEnable = VK_FALSE,
     .attachmentCount = 1,
     .pAttachments = &colourBlendAttachment
@@ -429,7 +414,6 @@ void HelloTriangleApplication::createGraphicsPipeline() {
   // Pipeline layout
   // ---------------------------------------------
   vk::PipelineLayoutCreateInfo pipelineLayoutInfo = {
-    .sType = vk::StructureType::ePipelineLayoutCreateInfo,
     .setLayoutCount = 0,
     .pushConstantRangeCount = 0
   };
@@ -439,7 +423,6 @@ void HelloTriangleApplication::createGraphicsPipeline() {
   // Create the pipeline
   // ---------------------------------------------
   vk::GraphicsPipelineCreateInfo pipelineInfo = {
-    .sType = vk::StructureType::eGraphicsPipelineCreateInfo,
     .stageCount = 2,
     .pStages = shaderStages.data(),
     .pVertexInputState = &vertexInputInfo,
@@ -465,7 +448,6 @@ void HelloTriangleApplication::createGraphicsPipeline() {
 void HelloTriangleApplication::createFramebuffers() {
   for (const vk::ImageView& imageView : m_swapChainImageViews) {
     vk::FramebufferCreateInfo framebufferInfo = {
-      .sType = vk::StructureType::eFramebufferCreateInfo,
       .renderPass = m_renderPass,
       .attachmentCount = 1,
       .pAttachments = &imageView,
@@ -481,7 +463,6 @@ void HelloTriangleApplication::createFramebuffers() {
 void HelloTriangleApplication::createCommandPool() {
   QueueFamilyIndices queueFamilyIndices = findQueueFamilies(m_physicalDevice);
   vk::CommandPoolCreateInfo poolInfo = {
-    .sType = vk::StructureType::eCommandPoolCreateInfo,
     .queueFamilyIndex = queueFamilyIndices.graphicsFamily.value()
   };
   m_commandPool = m_device.createCommandPool(poolInfo);
@@ -491,7 +472,6 @@ void HelloTriangleApplication::createCommandPool() {
 void HelloTriangleApplication::createCommandBuffers() {
   // Allocate
   vk::CommandBufferAllocateInfo allocInfo = {
-    .sType = vk::StructureType::eCommandBufferAllocateInfo,
     .commandPool = m_commandPool,
     .level = vk::CommandBufferLevel::ePrimary,
     .commandBufferCount = static_cast<uint32_t>(m_swapChainFramebuffers.size())
@@ -504,7 +484,6 @@ void HelloTriangleApplication::createCommandBuffers() {
     buffer.begin(vk::CommandBufferBeginInfo{});
     vk::ClearValue clearColor = vk::ClearColorValue(std::array{0.0F, 0.0F, 0.0F, 1.0F});
     vk::RenderPassBeginInfo renderPassInfo = {
-      .sType = vk::StructureType::eRenderPassBeginInfo,
       .renderPass = m_renderPass,
       .framebuffer = m_swapChainFramebuffers[iBuffer],
       .renderArea = vk::Rect2D{
@@ -526,7 +505,6 @@ void HelloTriangleApplication::createCommandBuffers() {
 // -----------------------------------------------------------------------------
 void HelloTriangleApplication::createSyncObjects() {
   vk::FenceCreateInfo fenceInfo = {
-    .sType = vk::StructureType::eFenceCreateInfo,
     .flags = vk::FenceCreateFlagBits::eSignaled
   };
   for (size_t i=0; i<c_maxFramesInFlight; ++i) {
@@ -568,7 +546,6 @@ void HelloTriangleApplication::drawFrame() {
   // Submit draw command
   vk::PipelineStageFlags waitStage = vk::PipelineStageFlagBits::eColorAttachmentOutput;
   vk::SubmitInfo submitInfo = {
-    .sType = vk::StructureType::eSubmitInfo,
     .waitSemaphoreCount = 1,
     .pWaitSemaphores = &m_imageAvailableSemaphores[currentFrame],
     .pWaitDstStageMask = &waitStage,
@@ -583,7 +560,6 @@ void HelloTriangleApplication::drawFrame() {
 
   // Submit present command
   vk::PresentInfoKHR presentInfo = {
-    .sType = vk::StructureType::ePresentInfoKHR,
     .waitSemaphoreCount = 1,
     .pWaitSemaphores = &m_renderFinishedSemaphores[currentFrame],
     .swapchainCount = 1,
@@ -599,7 +575,6 @@ void HelloTriangleApplication::drawFrame() {
 // -----------------------------------------------------------------------------
 vk::ShaderModule HelloTriangleApplication::createShaderModule(std::vector<char> code) {
   vk::ShaderModuleCreateInfo createInfo = {
-    .sType = vk::StructureType::eShaderModuleCreateInfo,
     .codeSize = code.size(),
     .pCode = reinterpret_cast<const uint32_t*>(code.data())
   };
@@ -835,9 +810,8 @@ vk::DebugUtilsMessengerCreateInfoEXT HelloTriangleApplication::createDebugMessen
   using Severity = vk::DebugUtilsMessageSeverityFlagBitsEXT;
   using Type = vk::DebugUtilsMessageTypeFlagBitsEXT;
   return {
-    .sType = vk::StructureType::eDebugUtilsMessengerCreateInfoEXT,
     .messageSeverity = /*Severity::eVerbose |*/ Severity::eInfo |
-                        Severity::eWarning | Severity::eError,
+                       Severity::eWarning | Severity::eError,
     .messageType = Type::eGeneral | Type::eValidation | Type::ePerformance,
     .pfnUserCallback = debugCallback,
     .pUserData = nullptr
