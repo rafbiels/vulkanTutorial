@@ -46,6 +46,8 @@ private:
   void createFramebuffers();
   void createCommandPool();
   void createCommandBuffers();
+  void createSemaphores();
+  void drawFrame();
   vk::ShaderModule createShaderModule(std::vector<char> code);
   QueueFamilyIndices findQueueFamilies(vk::PhysicalDevice device);
   bool isDeviceSuitable(vk::PhysicalDevice device);
@@ -91,6 +93,8 @@ private:
   std::vector<vk::Framebuffer> m_swapChainFramebuffers;
   vk::CommandPool m_commandPool;
   std::vector<vk::CommandBuffer> m_commandBuffers;
+  vk::Semaphore m_imageAvailableSemaphore;
+  vk::Semaphore m_renderFinishedSemaphore;
 }; // class HelloTriangleApplication
 
 #endif // HELLOTRIANGLEAPPLICATION_H

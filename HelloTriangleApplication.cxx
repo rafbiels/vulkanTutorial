@@ -4,6 +4,7 @@
 #include <array>
 #include <fstream>
 #include <iostream>
+#include <limits>
 #include <set>
 #include <span>
 #include <stdexcept>
@@ -66,17 +67,22 @@ void HelloTriangleApplication::initVulkan() {
   createFramebuffers();
   createCommandPool();
   createCommandBuffers();
+  createSemaphores();
 }
 
 // -----------------------------------------------------------------------------
 void HelloTriangleApplication::mainLoop() {
   while (glfwWindowShouldClose(m_window) == 0) {
     glfwPollEvents();
+    drawFrame();
   }
+  m_device.waitIdle();
 }
 
 // -----------------------------------------------------------------------------
 void HelloTriangleApplication::cleanup() {
+  m_device.destroySemaphore(m_renderFinishedSemaphore);
+  m_device.destroySemaphore(m_imageAvailableSemaphore);
   m_device.destroyCommandPool(m_commandPool);
   for (vk::Framebuffer framebuffer : m_swapChainFramebuffers) {
     m_device.destroyFramebuffer(framebuffer);
@@ -299,12 +305,22 @@ void HelloTriangleApplication::createRenderPass() {
     .colorAttachmentCount = 1,
     .pColorAttachments = &colourAttachmentRef
   };
+  vk::SubpassDependency dependency = {
+    .srcSubpass = VK_SUBPASS_EXTERNAL,
+    .dstSubpass = 0,
+    .srcStageMask = vk::PipelineStageFlagBits::eColorAttachmentOutput,
+    .dstStageMask = vk::PipelineStageFlagBits::eColorAttachmentOutput,
+    .srcAccessMask = {},
+    .dstAccessMask = vk::AccessFlagBits::eColorAttachmentWrite
+  };
   vk::RenderPassCreateInfo renderPassInfo = {
     .sType = vk::StructureType::eRenderPassCreateInfo,
     .attachmentCount = 1,
     .pAttachments = &colourAttachment,
     .subpassCount = 1,
-    .pSubpasses = &subpass
+    .pSubpasses = &subpass,
+    .dependencyCount = 1,
+    .pDependencies = &dependency
   };
   m_renderPass = m_device.createRenderPass(renderPassInfo);
 }
@@ -497,6 +513,44 @@ void HelloTriangleApplication::createCommandBuffers() {
     buffer.end();
     ++iBuffer;
   }
+}
+
+// -----------------------------------------------------------------------------
+void HelloTriangleApplication::createSemaphores() {
+  m_imageAvailableSemaphore = m_device.createSemaphore(vk::SemaphoreCreateInfo{});
+  m_renderFinishedSemaphore = m_device.createSemaphore(vk::SemaphoreCreateInfo{});
+}
+
+// -----------------------------------------------------------------------------
+void HelloTriangleApplication::drawFrame() {
+  uint32_t imageIndex = m_device.acquireNextImageKHR(m_swapChain,
+                                                     std::numeric_limits<uint64_t>::max(),
+                                                     m_imageAvailableSemaphore).value;
+  vk::PipelineStageFlags waitStage = vk::PipelineStageFlagBits::eColorAttachmentOutput;
+  vk::SubmitInfo submitInfo = {
+    .sType = vk::StructureType::eSubmitInfo,
+    .waitSemaphoreCount = 1,
+    .pWaitSemaphores = &m_imageAvailableSemaphore,
+    .pWaitDstStageMask = &waitStage,
+    .commandBufferCount = 1,
+    .pCommandBuffers = &m_commandBuffers[imageIndex],
+    .signalSemaphoreCount = 1,
+    .pSignalSemaphores = &m_renderFinishedSemaphore
+  };
+  throwOnFailure(m_graphicsQueue.submit(1, &submitInfo, nullptr),
+                 "Failed to submit draw command buffer");
+
+  vk::PresentInfoKHR presentInfo = {
+    .sType = vk::StructureType::ePresentInfoKHR,
+    .waitSemaphoreCount = 1,
+    .pWaitSemaphores = &m_renderFinishedSemaphore,
+    .swapchainCount = 1,
+    .pSwapchains = &m_swapChain,
+    .pImageIndices = &imageIndex
+  };
+  throwOnFailure(m_presentQueue.presentKHR(presentInfo),
+                 "Failed to present the image");
+  m_presentQueue.waitIdle();
 }
 
 // -----------------------------------------------------------------------------
