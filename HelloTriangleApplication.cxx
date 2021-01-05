@@ -27,6 +27,11 @@ namespace {
   #else
     constexpr bool c_enableValidationLayers = true;
   #endif
+  constexpr std::array<Vertex,3> c_vertices = {
+    Vertex{glm::vec2{0.0F, -0.5F}, glm::vec3{1.0F, 0.0F, 0.0F}},
+    Vertex{glm::vec2{0.5F, 0.5F},  glm::vec3{0.0F, 1.0F, 0.0F}},
+    Vertex{glm::vec2{-0.5F, 0.5F}, glm::vec3{0.0F, 0.0F, 1.0F}}
+  };
   // Helper functions
   constexpr void throwOnFailure(bool result, const std::string& msg="Failure!") {
     if (!result) {
@@ -351,9 +356,13 @@ void HelloTriangleApplication::createGraphicsPipeline() {
   // Fixed-function inputs
   // ---------------------------------------------
   // Vertex input assembly
+  auto bindingDescription = Vertex::getBindingDescription();
+  auto attributeDescriptions = Vertex::getAttributeDescriptions();
   vk::PipelineVertexInputStateCreateInfo vertexInputInfo = {
-    .vertexBindingDescriptionCount = 0,
-    .vertexAttributeDescriptionCount = 0
+    .vertexBindingDescriptionCount = 1,
+    .pVertexBindingDescriptions = &bindingDescription,
+    .vertexAttributeDescriptionCount = static_cast<uint32_t>(attributeDescriptions.size()),
+    .pVertexAttributeDescriptions = attributeDescriptions.data()
   };
   vk::PipelineInputAssemblyStateCreateInfo inputAssembly = {
     .topology = vk::PrimitiveTopology::eTriangleList,
@@ -907,4 +916,31 @@ FpsCounter& FpsCounter::operator++() {
     m_lastTimestamp = newTimestamp;
   }
   return *this;
+}
+
+// -----------------------------------------------------------------------------
+vk::VertexInputBindingDescription Vertex::getBindingDescription() {
+  return vk::VertexInputBindingDescription{
+    .binding = 0,
+    .stride = sizeof(Vertex),
+    .inputRate = vk::VertexInputRate::eVertex
+  };
+}
+
+// -----------------------------------------------------------------------------
+std::array<vk::VertexInputAttributeDescription, 2> Vertex::getAttributeDescriptions() {
+  return std::array{
+    vk::VertexInputAttributeDescription{
+      .location = 0,
+      .binding = 0,
+      .format = vk::Format::eR32G32Sfloat,
+      .offset = offsetof(Vertex, pos)
+    },
+    vk::VertexInputAttributeDescription{
+      .location = 1,
+      .binding = 0,
+      .format = vk::Format::eR32G32B32Sfloat,
+      .offset = offsetof(Vertex, colour)
+    },
+  };
 }

@@ -4,6 +4,7 @@
 #define VULKAN_HPP_NO_STRUCT_CONSTRUCTORS
 #define GLFW_INCLUDE_VULKAN
 #include <GLFW/glfw3.h>
+#include <glm/glm.hpp>
 #include <vulkan/vulkan.hpp>
 
 #include <chrono>
@@ -114,6 +115,13 @@ private:
   size_t m_frameNumber{0};
   size_t m_maxFrameNumber;
   std::chrono::time_point<Clock_t> m_lastTimestamp{};
+};
+
+struct Vertex {
+  glm::vec2 pos;
+  glm::vec3 colour;
+  static vk::VertexInputBindingDescription getBindingDescription();
+  static std::array<vk::VertexInputAttributeDescription, 2> getAttributeDescriptions();
 };
 
 #endif // HELLOTRIANGLEAPPLICATION_H
