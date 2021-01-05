@@ -15,6 +15,7 @@ namespace {
   // Constants
   constexpr int c_windowWidth{800}, c_windowHeight{600};
   constexpr size_t c_maxFramesInFlight{2};
+  constexpr size_t c_fpsCounterInterval{500};
   constexpr std::array<const char*,1> c_validationLayers = {
     "VK_LAYER_KHRONOS_validation"
   };
@@ -557,6 +558,9 @@ void HelloTriangleApplication::recreateSwapChain() {
 
 // -----------------------------------------------------------------------------
 void HelloTriangleApplication::drawFrame() {
+  static FpsCounter fpsCounter{c_fpsCounterInterval};
+  ++fpsCounter;
+
   static size_t currentFrame{0};
   throwOnFailure(m_device.waitForFences(
     1,
@@ -890,4 +894,17 @@ VKAPI_ATTR VkBool32 VKAPI_CALL HelloTriangleApplication::debugCallback(
   std::cerr << "validation layer: " << pCallbackData->pMessage << std::endl;
 
   return VK_FALSE;
+}
+
+// -----------------------------------------------------------------------------
+FpsCounter& FpsCounter::operator++() {
+  if (++m_frameNumber == m_maxFrameNumber) {
+    auto newTimestamp = std::chrono::steady_clock::now();
+    auto duration = std::chrono::duration<float>(newTimestamp - m_lastTimestamp);
+    float fps = static_cast<float>(m_maxFrameNumber) / duration.count();
+    std::cout << "FPS: " << fps << std::endl;
+    m_frameNumber = 0;
+    m_lastTimestamp = newTimestamp;
+  }
+  return *this;
 }

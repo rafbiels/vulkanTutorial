@@ -6,6 +6,7 @@
 #include <GLFW/glfw3.h>
 #include <vulkan/vulkan.hpp>
 
+#include <chrono>
 #include <optional>
 #include <vector>
 
@@ -103,5 +104,16 @@ private:
   std::vector<vk::Fence> m_imagesInFlight;
   bool m_framebufferResized{false};
 }; // class HelloTriangleApplication
+
+class FpsCounter {
+public:
+  using Clock_t = std::chrono::steady_clock;
+  explicit FpsCounter(size_t maxCount) : m_maxFrameNumber(maxCount) {}
+  FpsCounter& operator++();
+private:
+  size_t m_frameNumber{0};
+  size_t m_maxFrameNumber;
+  std::chrono::time_point<Clock_t> m_lastTimestamp{};
+};
 
 #endif // HELLOTRIANGLEAPPLICATION_H
