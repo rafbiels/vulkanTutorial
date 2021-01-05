@@ -49,9 +49,10 @@ void HelloTriangleApplication::run() {
 void HelloTriangleApplication::initWindow() {
   glfwInit();
   glfwWindowHint(GLFW_CLIENT_API, GLFW_NO_API);
-  glfwWindowHint(GLFW_RESIZABLE, GLFW_FALSE);
   m_window = glfwCreateWindow(c_windowWidth, c_windowHeight, "Vulkan",
                               nullptr, nullptr);
+  glfwSetWindowUserPointer(m_window, this);
+  glfwSetFramebufferSizeCallback(m_window, framebufferResizeCallback);
 }
 
 // -----------------------------------------------------------------------------
@@ -82,26 +83,21 @@ void HelloTriangleApplication::mainLoop() {
 
 // -----------------------------------------------------------------------------
 void HelloTriangleApplication::cleanup() {
+  cleanupSwapChain();
+
   for (vk::Fence fence : m_inFlightFences) {
     m_device.destroyFence(fence);
   }
+  m_inFlightFences.clear();
   for (vk::Semaphore semaphore : m_renderFinishedSemaphores) {
     m_device.destroySemaphore(semaphore);
   }
+  m_renderFinishedSemaphores.clear();
   for (vk::Semaphore semaphore : m_imageAvailableSemaphores) {
     m_device.destroySemaphore(semaphore);
   }
+  m_imageAvailableSemaphores.clear();
   m_device.destroyCommandPool(m_commandPool);
-  for (vk::Framebuffer framebuffer : m_swapChainFramebuffers) {
-    m_device.destroyFramebuffer(framebuffer);
-  }
-  for (vk::ImageView view: m_swapChainImageViews) {
-    m_device.destroyImageView(view);
-  }
-  m_device.destroyPipeline(m_graphicsPipeline);
-  m_device.destroyPipelineLayout(m_pipelineLayout);
-  m_device.destroyRenderPass(m_renderPass);
-  m_device.destroySwapchainKHR(m_swapChain);
   m_device.destroy();
   cleanupDebugMessenger();
   m_instance.destroySurfaceKHR(m_surface);
@@ -518,6 +514,48 @@ void HelloTriangleApplication::createSyncObjects() {
 }
 
 // -----------------------------------------------------------------------------
+void HelloTriangleApplication::cleanupSwapChain() {
+  for (vk::Framebuffer framebuffer : m_swapChainFramebuffers) {
+    m_device.destroyFramebuffer(framebuffer);
+  }
+  m_swapChainFramebuffers.clear();
+
+  m_device.freeCommandBuffers(m_commandPool, m_commandBuffers);
+
+  m_device.destroyPipeline(m_graphicsPipeline);
+  m_device.destroyPipelineLayout(m_pipelineLayout);
+  m_device.destroyRenderPass(m_renderPass);
+
+  for (vk::ImageView view: m_swapChainImageViews) {
+    m_device.destroyImageView(view);
+  }
+  m_swapChainImageViews.clear();
+  m_device.destroySwapchainKHR(m_swapChain);
+}
+
+// -----------------------------------------------------------------------------
+void HelloTriangleApplication::recreateSwapChain() {
+  int width{0};
+  int height{0};
+  glfwGetFramebufferSize(m_window, &width, &height);
+  while (width == 0 || height == 0) {
+    glfwGetFramebufferSize(m_window, &width, &height);
+    glfwWaitEvents();
+  }
+
+  m_device.waitIdle();
+
+  cleanupSwapChain();
+
+  createSwapChain();
+  createImageViews();
+  createRenderPass();
+  createGraphicsPipeline();
+  createFramebuffers();
+  createCommandBuffers();
+}
+
+// -----------------------------------------------------------------------------
 void HelloTriangleApplication::drawFrame() {
   static size_t currentFrame{0};
   throwOnFailure(m_device.waitForFences(
@@ -526,11 +564,20 @@ void HelloTriangleApplication::drawFrame() {
     VK_TRUE,
     std::numeric_limits<uint64_t>::max()));
 
-  uint32_t imageIndex = m_device.acquireNextImageKHR(
+  vk::ResultValue<uint32_t> nextImageResult = m_device.acquireNextImageKHR(
     m_swapChain,
     std::numeric_limits<uint64_t>::max(),
     m_imageAvailableSemaphores[currentFrame]
-  ).value;
+  );
+  if (nextImageResult.result == vk::Result::eErrorOutOfDateKHR) {
+    recreateSwapChain();
+    return;
+  }
+  if (nextImageResult.result != vk::Result::eSuboptimalKHR) {
+    throwOnFailure(nextImageResult.result);
+  }
+
+  uint32_t imageIndex = nextImageResult.value;
 
   // Check if a previous frame is using this image (i.e. there is its fence to wait on)
   if (m_imagesInFlight[imageIndex] != vk::Fence{nullptr}) {
@@ -566,8 +613,16 @@ void HelloTriangleApplication::drawFrame() {
     .pSwapchains = &m_swapChain,
     .pImageIndices = &imageIndex
   };
-  throwOnFailure(m_presentQueue.presentKHR(presentInfo),
-                 "Failed to present the image");
+  vk::Result presentResult = m_presentQueue.presentKHR(&presentInfo);
+  if (presentResult == vk::Result::eErrorOutOfDateKHR ||
+      presentResult == vk::Result::eSuboptimalKHR ||
+      m_framebufferResized) {
+    m_framebufferResized = false;
+    recreateSwapChain();
+  }
+  else {
+    throwOnFailure(presentResult, "Failed to present the image");
+  }
 
   currentFrame = (currentFrame + 1) % c_maxFramesInFlight;
 }
@@ -803,6 +858,13 @@ vk::PresentModeKHR HelloTriangleApplication::chooseSwapPresentMode(
     return *selected;
   }
   return vk::PresentModeKHR::eFifo;
+}
+
+// -----------------------------------------------------------------------------
+void HelloTriangleApplication::framebufferResizeCallback(
+  GLFWwindow* window, int /*width*/, int /*height*/) {
+  auto* app = reinterpret_cast<HelloTriangleApplication*>(glfwGetWindowUserPointer(window));
+  app->setFramebufferResized(true);
 }
 
 // -----------------------------------------------------------------------------

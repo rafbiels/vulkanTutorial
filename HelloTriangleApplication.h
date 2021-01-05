@@ -47,12 +47,15 @@ private:
   void createCommandPool();
   void createCommandBuffers();
   void createSyncObjects();
+  void cleanupSwapChain();
+  void recreateSwapChain();
   void drawFrame();
   vk::ShaderModule createShaderModule(std::vector<char> code);
   QueueFamilyIndices findQueueFamilies(vk::PhysicalDevice device);
   bool isDeviceSuitable(vk::PhysicalDevice device);
   SwapChainSupportDetails querySwapChainSupport(vk::PhysicalDevice device);
   vk::Extent2D chooseSwapExtent(const vk::SurfaceCapabilitiesKHR& capabilities);
+  void setFramebufferResized(bool value) {m_framebufferResized = value;}
 
   // --------------- static private methods ----------------
   static bool checkValidationLayerSupport();
@@ -63,6 +66,7 @@ private:
     const std::vector<vk::SurfaceFormatKHR>& availableFormats);
   static vk::PresentModeKHR chooseSwapPresentMode(
     const std::vector<vk::PresentModeKHR>& availablePresentModes);
+  static void framebufferResizeCallback(GLFWwindow* window, int width, int height);
   static vk::DebugUtilsMessengerCreateInfoEXT createDebugMessengerCreateInfo();
 
   // Cannot use c++ types as arguments because API requires this function signature
@@ -97,6 +101,7 @@ private:
   std::vector<vk::Semaphore> m_renderFinishedSemaphores;
   std::vector<vk::Fence> m_inFlightFences;
   std::vector<vk::Fence> m_imagesInFlight;
+  bool m_framebufferResized{false};
 }; // class HelloTriangleApplication
 
 #endif // HELLOTRIANGLEAPPLICATION_H
