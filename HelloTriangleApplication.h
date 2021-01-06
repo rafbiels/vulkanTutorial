@@ -46,6 +46,7 @@ private:
   void createRenderPass();
   void createGraphicsPipeline();
   void createFramebuffers();
+  void createVertexBuffer();
   void createCommandPool();
   void createCommandBuffers();
   void createSyncObjects();
@@ -58,6 +59,7 @@ private:
   SwapChainSupportDetails querySwapChainSupport(vk::PhysicalDevice device);
   vk::Extent2D chooseSwapExtent(const vk::SurfaceCapabilitiesKHR& capabilities);
   void setFramebufferResized(bool value) {m_framebufferResized = value;}
+  uint32_t findMemoryType(uint32_t typeFilter, vk::MemoryPropertyFlags properties);
 
   // --------------- static private methods ----------------
   static bool checkValidationLayerSupport();
@@ -103,6 +105,8 @@ private:
   std::vector<vk::Semaphore> m_renderFinishedSemaphores;
   std::vector<vk::Fence> m_inFlightFences;
   std::vector<vk::Fence> m_imagesInFlight;
+  vk::Buffer m_vertexBuffer;
+  vk::DeviceMemory m_vertexBufferMemory;
   bool m_framebufferResized{false};
 }; // class HelloTriangleApplication
 

@@ -2,6 +2,7 @@
 
 #include <algorithm>
 #include <array>
+#include <cstddef>
 #include <fstream>
 #include <iostream>
 #include <limits>
@@ -28,7 +29,7 @@ namespace {
     constexpr bool c_enableValidationLayers = true;
   #endif
   constexpr std::array<Vertex,3> c_vertices = {
-    Vertex{glm::vec2{0.0F, -0.5F}, glm::vec3{1.0F, 0.0F, 0.0F}},
+    Vertex{glm::vec2{0.0F, -0.5F}, glm::vec3{1.0F, 1.0F, 1.0F}},
     Vertex{glm::vec2{0.5F, 0.5F},  glm::vec3{0.0F, 1.0F, 0.0F}},
     Vertex{glm::vec2{-0.5F, 0.5F}, glm::vec3{0.0F, 0.0F, 1.0F}}
   };
@@ -74,6 +75,7 @@ void HelloTriangleApplication::initVulkan() {
   createGraphicsPipeline();
   createFramebuffers();
   createCommandPool();
+  createVertexBuffer();
   createCommandBuffers();
   createSyncObjects();
 }
@@ -103,6 +105,8 @@ void HelloTriangleApplication::cleanup() {
     m_device.destroySemaphore(semaphore);
   }
   m_imageAvailableSemaphores.clear();
+  m_device.destroyBuffer(m_vertexBuffer);
+  m_device.freeMemory(m_vertexBufferMemory);
   m_device.destroyCommandPool(m_commandPool);
   m_device.destroy();
   cleanupDebugMessenger();
@@ -466,6 +470,42 @@ void HelloTriangleApplication::createFramebuffers() {
 }
 
 // -----------------------------------------------------------------------------
+void HelloTriangleApplication::createVertexBuffer() {
+  vk::BufferCreateInfo bufferInfo = {
+    .size = sizeof(c_vertices[0]) * c_vertices.size(),
+    .usage = vk::BufferUsageFlagBits::eVertexBuffer,
+    .sharingMode = vk::SharingMode::eExclusive
+  };
+  m_vertexBuffer = m_device.createBuffer(bufferInfo);
+
+  vk::MemoryRequirements memRequirements =
+    m_device.getBufferMemoryRequirements(m_vertexBuffer);
+
+  vk::MemoryPropertyFlags requiredFlags = vk::MemoryPropertyFlagBits::eHostVisible |
+                                          vk::MemoryPropertyFlagBits::eHostCoherent;
+
+  vk::MemoryAllocateInfo allocInfo = {
+    .allocationSize = memRequirements.size,
+    .memoryTypeIndex = findMemoryType(memRequirements.memoryTypeBits, requiredFlags)
+  };
+
+  m_vertexBufferMemory = m_device.allocateMemory(allocInfo);
+  m_device.bindBufferMemory(m_vertexBuffer, m_vertexBufferMemory, 0);
+
+  std::byte* pBufferMemory{nullptr};
+  void** ppBufferMemory = reinterpret_cast<void**>(&pBufferMemory);
+  throwOnFailure(
+    m_device.mapMemory(m_vertexBufferMemory, 0, bufferInfo.size, {}, ppBufferMemory),
+    "Failed to  map vertex buffer memory");
+  auto dataToCopy = std::span{
+    reinterpret_cast<const std::byte*>(c_vertices.data()),
+    bufferInfo.size
+  };
+  std::copy(dataToCopy.begin(), dataToCopy.end(), pBufferMemory);
+  m_device.unmapMemory(m_vertexBufferMemory);
+}
+
+// -----------------------------------------------------------------------------
 void HelloTriangleApplication::createCommandPool() {
   QueueFamilyIndices queueFamilyIndices = findQueueFamilies(m_physicalDevice);
   vk::CommandPoolCreateInfo poolInfo = {
@@ -501,7 +541,8 @@ void HelloTriangleApplication::createCommandBuffers() {
     };
     buffer.beginRenderPass(renderPassInfo, vk::SubpassContents::eInline);
     buffer.bindPipeline(vk::PipelineBindPoint::eGraphics, m_graphicsPipeline);
-    buffer.draw(3, 1, 0, 0);
+    buffer.bindVertexBuffers(0, {m_vertexBuffer}, {0});
+    buffer.draw(c_vertices.size(), 1, 0, 0);
     buffer.endRenderPass();
     buffer.end();
     ++iBuffer;
@@ -732,6 +773,21 @@ HelloTriangleApplication::chooseSwapExtent(const vk::SurfaceCapabilitiesKHR& cap
                        std::min(capabilities.maxImageExtent.height,
                                 static_cast<uint32_t>(frameBufferHeight)))
   };
+}
+
+// -----------------------------------------------------------------------------
+uint32_t HelloTriangleApplication::findMemoryType(
+  uint32_t typeFilter, vk::MemoryPropertyFlags properties) {
+
+  vk::PhysicalDeviceMemoryProperties memProperties = m_physicalDevice.getMemoryProperties();
+  for (uint32_t i=0; i<memProperties.memoryTypeCount; ++i) {
+    if ((typeFilter & (1 << i)) != 0 &&
+        (memProperties.memoryTypes[i].propertyFlags & properties) == properties) {
+      return i;
+    }
+  }
+  throwOnFailure(false, "Failed to find suitable memory type");
+  return std::numeric_limits<uint32_t>::max();
 }
 
 // -----------------------------------------------------------------------------
