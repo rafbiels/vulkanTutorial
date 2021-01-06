@@ -471,38 +471,46 @@ void HelloTriangleApplication::createFramebuffers() {
 
 // -----------------------------------------------------------------------------
 void HelloTriangleApplication::createVertexBuffer() {
-  vk::BufferCreateInfo bufferInfo = {
-    .size = sizeof(c_vertices[0]) * c_vertices.size(),
-    .usage = vk::BufferUsageFlagBits::eVertexBuffer,
-    .sharingMode = vk::SharingMode::eExclusive
-  };
-  m_vertexBuffer = m_device.createBuffer(bufferInfo);
 
-  vk::MemoryRequirements memRequirements =
-    m_device.getBufferMemoryRequirements(m_vertexBuffer);
+  // Create staging buffer
+  constexpr vk::DeviceSize bufferSize = sizeof(c_vertices[0]) * c_vertices.size();
+  vk::MemoryPropertyFlags memFlags = vk::MemoryPropertyFlagBits::eHostVisible |
+                                     vk::MemoryPropertyFlagBits::eHostCoherent;
 
-  vk::MemoryPropertyFlags requiredFlags = vk::MemoryPropertyFlagBits::eHostVisible |
-                                          vk::MemoryPropertyFlagBits::eHostCoherent;
+  auto [stagingBuffer, stagingBufferMemory] =
+    createBuffer(bufferSize,
+                 vk::BufferUsageFlagBits::eTransferSrc,
+                 vk::MemoryPropertyFlagBits::eHostVisible |
+                 vk::MemoryPropertyFlagBits::eHostCoherent);
 
-  vk::MemoryAllocateInfo allocInfo = {
-    .allocationSize = memRequirements.size,
-    .memoryTypeIndex = findMemoryType(memRequirements.memoryTypeBits, requiredFlags)
-  };
-
-  m_vertexBufferMemory = m_device.allocateMemory(allocInfo);
-  m_device.bindBufferMemory(m_vertexBuffer, m_vertexBufferMemory, 0);
-
+  // Copy data to staging buffer
   std::byte* pBufferMemory{nullptr};
   void** ppBufferMemory = reinterpret_cast<void**>(&pBufferMemory);
   throwOnFailure(
-    m_device.mapMemory(m_vertexBufferMemory, 0, bufferInfo.size, {}, ppBufferMemory),
+    m_device.mapMemory(stagingBufferMemory, 0, bufferSize, {}, ppBufferMemory),
     "Failed to  map vertex buffer memory");
   auto dataToCopy = std::span{
     reinterpret_cast<const std::byte*>(c_vertices.data()),
-    bufferInfo.size
+    bufferSize
   };
   std::copy(dataToCopy.begin(), dataToCopy.end(), pBufferMemory);
-  m_device.unmapMemory(m_vertexBufferMemory);
+  m_device.unmapMemory(stagingBufferMemory);
+
+  // Create device-local buffer
+  auto [buffer, bufferMemory] =
+    createBuffer(bufferSize,
+                 vk::BufferUsageFlagBits::eTransferDst |
+                 vk::BufferUsageFlagBits::eVertexBuffer,
+                 vk::MemoryPropertyFlagBits::eDeviceLocal);
+  m_vertexBuffer = buffer;
+  m_vertexBufferMemory = bufferMemory;
+
+  // Copy data between buffers
+  copyBuffer(stagingBuffer, m_vertexBuffer, bufferSize);
+
+  // Clean up the staging buffer
+  m_device.destroyBuffer(stagingBuffer);
+  m_device.freeMemory(stagingBufferMemory);
 }
 
 // -----------------------------------------------------------------------------
@@ -788,6 +796,72 @@ uint32_t HelloTriangleApplication::findMemoryType(
   }
   throwOnFailure(false, "Failed to find suitable memory type");
   return std::numeric_limits<uint32_t>::max();
+}
+
+// -----------------------------------------------------------------------------
+std::pair<vk::Buffer, vk::DeviceMemory> HelloTriangleApplication::createBuffer(
+  vk::DeviceSize size, vk::BufferUsageFlags usage, vk::MemoryPropertyFlags properties) {
+
+  vk::BufferCreateInfo bufferInfo = {
+    .size = size,
+    .usage = usage,
+    .sharingMode = vk::SharingMode::eExclusive
+  };
+  vk::Buffer buffer = m_device.createBuffer(bufferInfo);
+
+  vk::MemoryRequirements memRequirements =
+    m_device.getBufferMemoryRequirements(buffer);
+
+  vk::MemoryAllocateInfo allocInfo = {
+    .allocationSize = memRequirements.size,
+    .memoryTypeIndex = findMemoryType(memRequirements.memoryTypeBits, properties)
+  };
+
+  vk::DeviceMemory bufferMemory = m_device.allocateMemory(allocInfo);
+  m_device.bindBufferMemory(buffer, bufferMemory, 0);
+
+  return {buffer, bufferMemory};
+}
+
+// -----------------------------------------------------------------------------
+void  HelloTriangleApplication::copyBuffer(
+  vk::Buffer srcBuffer, vk::Buffer dstBuffer, vk::DeviceSize size) {
+    
+  QueueFamilyIndices queueFamilyIndices = findQueueFamilies(m_physicalDevice);
+  vk::CommandPoolCreateInfo poolInfo = {
+    .flags = vk::CommandPoolCreateFlagBits::eTransient,
+    .queueFamilyIndex = queueFamilyIndices.graphicsFamily.value()
+  };
+  vk::CommandPool transientCommandPool = m_device.createCommandPool(poolInfo);
+
+  vk::CommandBufferAllocateInfo allocInfo = {
+    .commandPool = transientCommandPool,
+    .level = vk::CommandBufferLevel::ePrimary,
+    .commandBufferCount = 1
+  };
+  vk::CommandBuffer copyCommandBuffer = m_device.allocateCommandBuffers(allocInfo).at(0);
+
+  vk::CommandBufferBeginInfo beginInfo = {
+    .flags = vk::CommandBufferUsageFlagBits::eOneTimeSubmit
+  };
+  copyCommandBuffer.begin(beginInfo);
+
+  vk::BufferCopy copyRegion = {
+    .size = size
+  };
+  copyCommandBuffer.copyBuffer(srcBuffer, dstBuffer, copyRegion);
+  copyCommandBuffer.end();
+
+  vk::SubmitInfo submitInfo = {
+    .commandBufferCount = 1,
+    .pCommandBuffers = &copyCommandBuffer
+  };
+  throwOnFailure(m_graphicsQueue.submit(1, &submitInfo, nullptr),
+                 "Failed to submit copy command buffer");
+  m_graphicsQueue.waitIdle();
+
+  m_device.freeCommandBuffers(transientCommandPool, copyCommandBuffer);
+  m_device.destroyCommandPool(transientCommandPool);
 }
 
 // -----------------------------------------------------------------------------

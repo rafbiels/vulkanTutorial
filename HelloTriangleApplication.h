@@ -9,6 +9,7 @@
 
 #include <chrono>
 #include <optional>
+#include <utility>
 #include <vector>
 
 class HelloTriangleApplication {
@@ -60,6 +61,9 @@ private:
   vk::Extent2D chooseSwapExtent(const vk::SurfaceCapabilitiesKHR& capabilities);
   void setFramebufferResized(bool value) {m_framebufferResized = value;}
   uint32_t findMemoryType(uint32_t typeFilter, vk::MemoryPropertyFlags properties);
+  std::pair<vk::Buffer, vk::DeviceMemory> createBuffer(
+    vk::DeviceSize size, vk::BufferUsageFlags usage, vk::MemoryPropertyFlags properties);
+  void copyBuffer(vk::Buffer srcBuffer, vk::Buffer dstBuffer, vk::DeviceSize size);
 
   // --------------- static private methods ----------------
   static bool checkValidationLayerSupport();
