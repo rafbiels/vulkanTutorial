@@ -48,6 +48,7 @@ private:
   void createGraphicsPipeline();
   void createFramebuffers();
   void createVertexBuffer();
+  void createIndexBuffer();
   void createCommandPool();
   void createCommandBuffers();
   void createSyncObjects();
@@ -111,6 +112,8 @@ private:
   std::vector<vk::Fence> m_imagesInFlight;
   vk::Buffer m_vertexBuffer;
   vk::DeviceMemory m_vertexBufferMemory;
+  vk::Buffer m_indexBuffer;
+  vk::DeviceMemory m_indexBufferMemory;
   bool m_framebufferResized{false};
 }; // class HelloTriangleApplication
 

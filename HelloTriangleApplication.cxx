@@ -28,11 +28,13 @@ namespace {
   #else
     constexpr bool c_enableValidationLayers = true;
   #endif
-  constexpr std::array<Vertex,3> c_vertices = {
-    Vertex{glm::vec2{0.0F, -0.5F}, glm::vec3{1.0F, 1.0F, 1.0F}},
-    Vertex{glm::vec2{0.5F, 0.5F},  glm::vec3{0.0F, 1.0F, 0.0F}},
-    Vertex{glm::vec2{-0.5F, 0.5F}, glm::vec3{0.0F, 0.0F, 1.0F}}
+  constexpr std::array<Vertex,4> c_vertices = {
+    Vertex{glm::vec2{-0.5F, -0.5F}, glm::vec3{1.0F, 0.0F, 0.0F}},
+    Vertex{glm::vec2{ 0.5F, -0.5F}, glm::vec3{0.0F, 1.0F, 0.0F}},
+    Vertex{glm::vec2{ 0.5F,  0.5F}, glm::vec3{0.0F, 0.0F, 1.0F}},
+    Vertex{glm::vec2{-0.5F,  0.5F}, glm::vec3{1.0F, 1.0F, 1.0F}}
   };
+  constexpr std::array<uint16_t, 6> c_indices = {0, 1, 2, 2, 3, 0};
   // Helper functions
   constexpr void throwOnFailure(bool result, const std::string& msg="Failure!") {
     if (!result) {
@@ -76,6 +78,7 @@ void HelloTriangleApplication::initVulkan() {
   createFramebuffers();
   createCommandPool();
   createVertexBuffer();
+  createIndexBuffer();
   createCommandBuffers();
   createSyncObjects();
 }
@@ -107,6 +110,8 @@ void HelloTriangleApplication::cleanup() {
   m_imageAvailableSemaphores.clear();
   m_device.destroyBuffer(m_vertexBuffer);
   m_device.freeMemory(m_vertexBufferMemory);
+  m_device.destroyBuffer(m_indexBuffer);
+  m_device.freeMemory(m_indexBufferMemory);
   m_device.destroyCommandPool(m_commandPool);
   m_device.destroy();
   cleanupDebugMessenger();
@@ -514,6 +519,50 @@ void HelloTriangleApplication::createVertexBuffer() {
 }
 
 // -----------------------------------------------------------------------------
+void HelloTriangleApplication::createIndexBuffer() {
+
+  // Create staging buffer
+  constexpr vk::DeviceSize bufferSize = sizeof(c_indices[0]) * c_indices.size();
+  vk::MemoryPropertyFlags memFlags = vk::MemoryPropertyFlagBits::eHostVisible |
+                                     vk::MemoryPropertyFlagBits::eHostCoherent;
+
+  auto [stagingBuffer, stagingBufferMemory] =
+    createBuffer(bufferSize,
+                 vk::BufferUsageFlagBits::eTransferSrc,
+                 vk::MemoryPropertyFlagBits::eHostVisible |
+                 vk::MemoryPropertyFlagBits::eHostCoherent);
+
+  // Copy data to staging buffer
+  std::byte* pBufferMemory{nullptr};
+  void** ppBufferMemory = reinterpret_cast<void**>(&pBufferMemory);
+  throwOnFailure(
+    m_device.mapMemory(stagingBufferMemory, 0, bufferSize, {}, ppBufferMemory),
+    "Failed to  map index buffer memory");
+  auto dataToCopy = std::span{
+    reinterpret_cast<const std::byte*>(c_indices.data()),
+    bufferSize
+  };
+  std::copy(dataToCopy.begin(), dataToCopy.end(), pBufferMemory);
+  m_device.unmapMemory(stagingBufferMemory);
+
+  // Create device-local buffer
+  auto [buffer, bufferMemory] =
+    createBuffer(bufferSize,
+                 vk::BufferUsageFlagBits::eTransferDst |
+                 vk::BufferUsageFlagBits::eIndexBuffer,
+                 vk::MemoryPropertyFlagBits::eDeviceLocal);
+  m_indexBuffer = buffer;
+  m_indexBufferMemory = bufferMemory;
+
+  // Copy data between buffers
+  copyBuffer(stagingBuffer, m_indexBuffer, bufferSize);
+
+  // Clean up the staging buffer
+  m_device.destroyBuffer(stagingBuffer);
+  m_device.freeMemory(stagingBufferMemory);
+}
+
+// -----------------------------------------------------------------------------
 void HelloTriangleApplication::createCommandPool() {
   QueueFamilyIndices queueFamilyIndices = findQueueFamilies(m_physicalDevice);
   vk::CommandPoolCreateInfo poolInfo = {
@@ -550,7 +599,8 @@ void HelloTriangleApplication::createCommandBuffers() {
     buffer.beginRenderPass(renderPassInfo, vk::SubpassContents::eInline);
     buffer.bindPipeline(vk::PipelineBindPoint::eGraphics, m_graphicsPipeline);
     buffer.bindVertexBuffers(0, {m_vertexBuffer}, {0});
-    buffer.draw(c_vertices.size(), 1, 0, 0);
+    buffer.bindIndexBuffer(m_indexBuffer, 0, vk::IndexType::eUint16);
+    buffer.drawIndexed(c_indices.size(), 1, 0, 0, 0);
     buffer.endRenderPass();
     buffer.end();
     ++iBuffer;
@@ -826,7 +876,7 @@ std::pair<vk::Buffer, vk::DeviceMemory> HelloTriangleApplication::createBuffer(
 // -----------------------------------------------------------------------------
 void  HelloTriangleApplication::copyBuffer(
   vk::Buffer srcBuffer, vk::Buffer dstBuffer, vk::DeviceSize size) {
-    
+
   QueueFamilyIndices queueFamilyIndices = findQueueFamilies(m_physicalDevice);
   vk::CommandPoolCreateInfo poolInfo = {
     .flags = vk::CommandPoolCreateFlagBits::eTransient,
