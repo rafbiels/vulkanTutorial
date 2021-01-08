@@ -1,8 +1,10 @@
 #ifndef HELLOTRIANGLEAPPLICATION_H
 #define HELLOTRIANGLEAPPLICATION_H
 
-#define VULKAN_HPP_NO_STRUCT_CONSTRUCTORS
 #define GLFW_INCLUDE_VULKAN
+#define GLM_FORCE_RADIANS
+#define VULKAN_HPP_NO_STRUCT_CONSTRUCTORS
+
 #include <GLFW/glfw3.h>
 #include <glm/glm.hpp>
 #include <vulkan/vulkan.hpp>
@@ -31,6 +33,11 @@ private:
     std::vector<vk::SurfaceFormatKHR> formats;
     std::vector<vk::PresentModeKHR> presentModes;
   };
+  struct UniformBufferObject {
+    glm::mat4 model;
+    glm::mat4 view;
+    glm::mat4 proj;
+  };
   // --------------- private methods -----------------------
   void initWindow();
   void initVulkan();
@@ -49,6 +56,10 @@ private:
   void createFramebuffers();
   void createVertexBuffer();
   void createIndexBuffer();
+  void createUniformBuffers();
+  void createDescriptorPool();
+  void createDescriptorSetLayout();
+  void createDescriptorSets();
   void createCommandPool();
   void createCommandBuffers();
   void createSyncObjects();
@@ -65,6 +76,7 @@ private:
   std::pair<vk::Buffer, vk::DeviceMemory> createBuffer(
     vk::DeviceSize size, vk::BufferUsageFlags usage, vk::MemoryPropertyFlags properties);
   void copyBuffer(vk::Buffer srcBuffer, vk::Buffer dstBuffer, vk::DeviceSize size);
+  void updateUniformBuffer(uint32_t currentImage);
 
   // --------------- static private methods ----------------
   static bool checkValidationLayerSupport();
@@ -114,6 +126,11 @@ private:
   vk::DeviceMemory m_vertexBufferMemory;
   vk::Buffer m_indexBuffer;
   vk::DeviceMemory m_indexBufferMemory;
+  std::vector<vk::Buffer> m_uniformBuffers;
+  std::vector<vk::DeviceMemory> m_uniformBuffersMemory;
+  vk::DescriptorPool m_descriptorPool;
+  vk::DescriptorSetLayout m_descriptorSetLayout;
+  std::vector<vk::DescriptorSet> m_descriptorSets;
   bool m_framebufferResized{false};
 }; // class HelloTriangleApplication
 
