@@ -62,6 +62,7 @@ private:
   void createDescriptorSets();
   void createCommandPool();
   void createCommandBuffers();
+  void createTextureImage();
   void createSyncObjects();
   void cleanupSwapChain();
   void recreateSwapChain();
@@ -75,8 +76,16 @@ private:
   uint32_t findMemoryType(uint32_t typeFilter, vk::MemoryPropertyFlags properties);
   std::pair<vk::Buffer, vk::DeviceMemory> createBuffer(
     vk::DeviceSize size, vk::BufferUsageFlags usage, vk::MemoryPropertyFlags properties);
+  std::pair<vk::CommandPool, vk::CommandBuffer> beginSingleTimeCommands();
+  void endSingleTimeCommands(vk::CommandPool commandPool, vk::CommandBuffer commandBuffer);
   void copyBuffer(vk::Buffer srcBuffer, vk::Buffer dstBuffer, vk::DeviceSize size);
   void updateUniformBuffer(uint32_t currentImage);
+  std::pair<vk::Image, vk::DeviceMemory> createImage(
+    uint32_t width, uint32_t height, vk::Format format, vk::ImageTiling tiling,
+    vk::ImageUsageFlags usage, vk::MemoryPropertyFlags properties);
+  void transitionImageLayout(
+    vk::Image image, vk::Format format, vk::ImageLayout oldLayout, vk::ImageLayout newLayout);
+  void copyBufferToImage(vk::Buffer buffer, vk::Image image, uint32_t width, uint32_t height);
 
   // --------------- static private methods ----------------
   static bool checkValidationLayerSupport();
@@ -131,6 +140,8 @@ private:
   vk::DescriptorPool m_descriptorPool;
   vk::DescriptorSetLayout m_descriptorSetLayout;
   std::vector<vk::DescriptorSet> m_descriptorSets;
+  vk::Image m_textureImage;
+  vk::DeviceMemory m_textureImageMemory;
   bool m_framebufferResized{false};
 }; // class HelloTriangleApplication
 

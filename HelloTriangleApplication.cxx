@@ -3,6 +3,9 @@
 #include <glm/gtc/matrix_transform.hpp>
 #include <glm/trigonometric.hpp>
 
+#define STB_IMAGE_IMPLEMENTATION
+#include <stb_image.h>
+
 #include <algorithm>
 #include <array>
 #include <cstddef>
@@ -20,6 +23,7 @@ namespace {
   constexpr int c_windowWidth{800}, c_windowHeight{600};
   constexpr size_t c_maxFramesInFlight{2};
   constexpr size_t c_fpsCounterInterval{500};
+  constexpr std::string_view c_texturePath{"../textures/frog.jpg"};
   constexpr std::array<const char*,1> c_validationLayers = {
     "VK_LAYER_KHRONOS_validation"
   };
@@ -46,6 +50,19 @@ namespace {
   }
   constexpr void throwOnFailure(vk::Result result, const std::string& msg="Failure!") {
     throwOnFailure(result==vk::Result::eSuccess, msg);
+  }
+  template<typename T> constexpr void copyToBuffer(
+      const T* data, vk::Device& device, vk::DeviceMemory& bufferMemory,
+      vk::DeviceSize bufferSize, vk::DeviceSize offset=0, vk::MemoryMapFlags flags={}) {
+
+    std::byte* pBufferMemory{nullptr};
+    void** ppBufferMemory = reinterpret_cast<void**>(&pBufferMemory);
+    throwOnFailure(
+      device.mapMemory(bufferMemory, offset, bufferSize, flags, ppBufferMemory),
+      "Failed to map buffer memory");
+    auto dataToCopy = std::span{reinterpret_cast<const std::byte*>(data), bufferSize};
+    std::copy(dataToCopy.begin(), dataToCopy.end(), pBufferMemory);
+    device.unmapMemory(bufferMemory);
   }
 } // anonymous namespace
 
@@ -81,6 +98,7 @@ void HelloTriangleApplication::initVulkan() {
   createGraphicsPipeline();
   createFramebuffers();
   createCommandPool();
+  createTextureImage();
   createVertexBuffer();
   createIndexBuffer();
   createUniformBuffers();
@@ -115,6 +133,9 @@ void HelloTriangleApplication::cleanup() {
     m_device.destroySemaphore(semaphore);
   }
   m_imageAvailableSemaphores.clear();
+
+  m_device.destroyImage(m_textureImage);
+  m_device.freeMemory(m_textureImageMemory);
   m_device.destroyDescriptorSetLayout(m_descriptorSetLayout);
   m_device.destroyBuffer(m_vertexBuffer);
   m_device.freeMemory(m_vertexBufferMemory);
@@ -122,6 +143,7 @@ void HelloTriangleApplication::cleanup() {
   m_device.freeMemory(m_indexBufferMemory);
   m_device.destroyCommandPool(m_commandPool);
   m_device.destroy();
+
   cleanupDebugMessenger();
   m_instance.destroySurfaceKHR(m_surface);
   m_instance.destroy();
@@ -498,17 +520,7 @@ void HelloTriangleApplication::createVertexBuffer() {
                  vk::MemoryPropertyFlagBits::eHostCoherent);
 
   // Copy data to staging buffer
-  std::byte* pBufferMemory{nullptr};
-  void** ppBufferMemory = reinterpret_cast<void**>(&pBufferMemory);
-  throwOnFailure(
-    m_device.mapMemory(stagingBufferMemory, 0, bufferSize, {}, ppBufferMemory),
-    "Failed to  map vertex buffer memory");
-  auto dataToCopy = std::span{
-    reinterpret_cast<const std::byte*>(c_vertices.data()),
-    bufferSize
-  };
-  std::copy(dataToCopy.begin(), dataToCopy.end(), pBufferMemory);
-  m_device.unmapMemory(stagingBufferMemory);
+  copyToBuffer(c_vertices.data(), m_device, stagingBufferMemory, bufferSize);
 
   // Create device-local buffer
   auto [buffer, bufferMemory] =
@@ -542,17 +554,7 @@ void HelloTriangleApplication::createIndexBuffer() {
                  vk::MemoryPropertyFlagBits::eHostCoherent);
 
   // Copy data to staging buffer
-  std::byte* pBufferMemory{nullptr};
-  void** ppBufferMemory = reinterpret_cast<void**>(&pBufferMemory);
-  throwOnFailure(
-    m_device.mapMemory(stagingBufferMemory, 0, bufferSize, {}, ppBufferMemory),
-    "Failed to  map index buffer memory");
-  auto dataToCopy = std::span{
-    reinterpret_cast<const std::byte*>(c_indices.data()),
-    bufferSize
-  };
-  std::copy(dataToCopy.begin(), dataToCopy.end(), pBufferMemory);
-  m_device.unmapMemory(stagingBufferMemory);
+  copyToBuffer(c_indices.data(), m_device, stagingBufferMemory, bufferSize);
 
   // Create device-local buffer
   auto [buffer, bufferMemory] =
@@ -696,6 +698,67 @@ void HelloTriangleApplication::createCommandBuffers() {
     buffer.end();
     ++iImageView;
   }
+}
+
+// -----------------------------------------------------------------------------
+void HelloTriangleApplication::createTextureImage() {
+  int texWidth{0};
+  int texHeight{0};
+  int texChannels{0};
+  stbi_uc* pixels = stbi_load(c_texturePath.data(),
+                              &texWidth,
+                              &texHeight,
+                              &texChannels,
+                              STBI_rgb_alpha);
+  throwOnFailure(pixels!=nullptr, "Failed to load texture image");
+  const vk::DeviceSize imageSize = texWidth * texHeight * 4;
+  const auto texWidthU = static_cast<uint32_t>(texWidth);
+  const auto texHeightU = static_cast<uint32_t>(texHeight);
+
+  // Create staging buffer
+  auto [stagingBuffer, stagingBufferMemory] =
+    createBuffer(imageSize,
+                 vk::BufferUsageFlagBits::eTransferSrc,
+                 vk::MemoryPropertyFlagBits::eHostVisible |
+                 vk::MemoryPropertyFlagBits::eHostCoherent);
+
+  // Copy data to staging buffer
+  copyToBuffer(pixels, m_device, stagingBufferMemory, imageSize);
+
+  // Clean up the pixels data
+  stbi_image_free(pixels);
+
+  // Create image
+  constexpr vk::Format imageFormat = vk::Format::eR8G8B8A8Srgb;
+  auto [image, imageMemory] = createImage(
+    texWidthU,
+    texHeightU,
+    imageFormat,
+    vk::ImageTiling::eOptimal,
+    vk::ImageUsageFlagBits::eTransferDst | vk::ImageUsageFlagBits::eSampled,
+    vk::MemoryPropertyFlagBits::eDeviceLocal
+  );
+  m_textureImage = image;
+  m_textureImageMemory = imageMemory;
+
+  // Transfer texel data from buffer to image
+  transitionImageLayout(
+    m_textureImage,
+    imageFormat,
+    vk::ImageLayout::eUndefined,
+    vk::ImageLayout::eTransferDstOptimal);
+
+  copyBufferToImage(stagingBuffer, m_textureImage, texWidthU, texHeightU);
+
+  transitionImageLayout(
+    m_textureImage,
+    imageFormat,
+    vk::ImageLayout::eTransferDstOptimal,
+    vk::ImageLayout::eShaderReadOnlyOptimal);
+
+  // Clean up
+  m_device.destroyBuffer(stagingBuffer);
+  m_device.freeMemory(stagingBufferMemory);
 }
 
 // -----------------------------------------------------------------------------
@@ -981,9 +1044,8 @@ std::pair<vk::Buffer, vk::DeviceMemory> HelloTriangleApplication::createBuffer(
 }
 
 // -----------------------------------------------------------------------------
-void  HelloTriangleApplication::copyBuffer(
-  vk::Buffer srcBuffer, vk::Buffer dstBuffer, vk::DeviceSize size) {
-
+std::pair<vk::CommandPool, vk::CommandBuffer> HelloTriangleApplication::beginSingleTimeCommands() {
+  // Create transient command pool
   QueueFamilyIndices queueFamilyIndices = findQueueFamilies(m_physicalDevice);
   vk::CommandPoolCreateInfo poolInfo = {
     .flags = vk::CommandPoolCreateFlagBits::eTransient,
@@ -991,34 +1053,51 @@ void  HelloTriangleApplication::copyBuffer(
   };
   vk::CommandPool transientCommandPool = m_device.createCommandPool(poolInfo);
 
+  // Create command buffer
   vk::CommandBufferAllocateInfo allocInfo = {
     .commandPool = transientCommandPool,
     .level = vk::CommandBufferLevel::ePrimary,
     .commandBufferCount = 1
   };
-  vk::CommandBuffer copyCommandBuffer = m_device.allocateCommandBuffers(allocInfo).at(0);
+  vk::CommandBuffer commandBuffer = m_device.allocateCommandBuffers(allocInfo).at(0);
 
+  // Begin command buffer
   vk::CommandBufferBeginInfo beginInfo = {
     .flags = vk::CommandBufferUsageFlagBits::eOneTimeSubmit
   };
-  copyCommandBuffer.begin(beginInfo);
+  commandBuffer.begin(beginInfo);
 
-  vk::BufferCopy copyRegion = {
-    .size = size
-  };
-  copyCommandBuffer.copyBuffer(srcBuffer, dstBuffer, copyRegion);
-  copyCommandBuffer.end();
+  return {transientCommandPool, commandBuffer};
+}
+
+// -----------------------------------------------------------------------------
+void HelloTriangleApplication::endSingleTimeCommands(
+    vk::CommandPool commandPool, vk::CommandBuffer commandBuffer) {
+
+  commandBuffer.end();
 
   vk::SubmitInfo submitInfo = {
     .commandBufferCount = 1,
-    .pCommandBuffers = &copyCommandBuffer
+    .pCommandBuffers = &commandBuffer
   };
   throwOnFailure(m_graphicsQueue.submit(1, &submitInfo, nullptr),
                  "Failed to submit copy command buffer");
   m_graphicsQueue.waitIdle();
 
-  m_device.freeCommandBuffers(transientCommandPool, copyCommandBuffer);
-  m_device.destroyCommandPool(transientCommandPool);
+  m_device.freeCommandBuffers(commandPool, commandBuffer);
+  m_device.destroyCommandPool(commandPool);
+}
+
+// -----------------------------------------------------------------------------
+void HelloTriangleApplication::copyBuffer(
+    vk::Buffer srcBuffer, vk::Buffer dstBuffer, vk::DeviceSize size) {
+
+  auto [commandPool, commandBuffer] = beginSingleTimeCommands();
+
+  vk::BufferCopy copyRegion = {.size = size};
+  commandBuffer.copyBuffer(srcBuffer, dstBuffer, copyRegion);
+
+  endSingleTimeCommands(commandPool, commandBuffer);
 }
 
 // -----------------------------------------------------------------------------
@@ -1064,6 +1143,113 @@ void HelloTriangleApplication::updateUniformBuffer(uint32_t currentImage) {
   };
   std::copy(dataToCopy.begin(), dataToCopy.end(), pBufferMemory);
   m_device.unmapMemory(m_uniformBuffersMemory[currentImage]);
+}
+
+// -----------------------------------------------------------------------------
+std::pair<vk::Image, vk::DeviceMemory> HelloTriangleApplication::createImage(
+    uint32_t width, uint32_t height, vk::Format format, vk::ImageTiling tiling,
+    vk::ImageUsageFlags usage, vk::MemoryPropertyFlags properties) {
+
+  // Create image
+  vk::ImageCreateInfo imageInfo = {
+    .imageType = vk::ImageType::e2D,
+    .format = format,
+    .extent = vk::Extent3D{width,  height, 1},
+    .mipLevels = 1,
+    .arrayLayers = 1,
+    .samples = vk::SampleCountFlagBits::e1,
+    .tiling = tiling,
+    .usage = usage,
+    .sharingMode = vk::SharingMode::eExclusive,
+    .initialLayout = vk::ImageLayout::eUndefined
+  };
+  vk::Image image = m_device.createImage(imageInfo);
+
+  // Create and bind image memory
+  vk::MemoryRequirements memRequirements = m_device.getImageMemoryRequirements(image);
+  vk::MemoryAllocateInfo allocInfo = {
+    .allocationSize = memRequirements.size,
+    .memoryTypeIndex = findMemoryType(memRequirements.memoryTypeBits, properties)
+  };
+  vk::DeviceMemory imageMemory = m_device.allocateMemory(allocInfo);
+  m_device.bindImageMemory(image, imageMemory, 0);
+
+  return {image, imageMemory};
+}
+
+// -----------------------------------------------------------------------------
+void HelloTriangleApplication::transitionImageLayout(
+    vk::Image image, vk::Format /*format*/, vk::ImageLayout oldLayout, vk::ImageLayout newLayout) {
+
+  auto [commandPool, commandBuffer] = beginSingleTimeCommands();
+
+  vk::PipelineStageFlags srcStage{};
+  vk::PipelineStageFlags dstStage{};
+  vk::AccessFlags srcAccess{};
+  vk::AccessFlags dstAccess{};
+
+  if (oldLayout == vk::ImageLayout::eUndefined &&
+      newLayout == vk::ImageLayout::eTransferDstOptimal) {
+    srcAccess = {};
+    dstAccess = vk::AccessFlagBits::eTransferWrite;
+    srcStage = vk::PipelineStageFlagBits::eTopOfPipe;
+    dstStage = vk::PipelineStageFlagBits::eTransfer;
+  }
+  else if (oldLayout == vk::ImageLayout::eTransferDstOptimal &&
+           newLayout == vk::ImageLayout::eShaderReadOnlyOptimal) {
+    srcAccess = vk::AccessFlagBits::eTransferWrite;
+    dstAccess = vk::AccessFlagBits::eShaderRead;
+    srcStage = vk::PipelineStageFlagBits::eTransfer;
+    dstStage = vk::PipelineStageFlagBits::eFragmentShader;
+  }
+  else {
+    throwOnFailure(false, "Unsupported layout transition");
+  }
+
+  vk::ImageMemoryBarrier barrier = {
+    .srcAccessMask = srcAccess,
+    .dstAccessMask = dstAccess,
+    .oldLayout = oldLayout,
+    .newLayout = newLayout,
+    .srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED,
+    .dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED,
+    .image = image,
+    .subresourceRange = vk::ImageSubresourceRange{
+      .aspectMask = vk::ImageAspectFlagBits::eColor,
+      .baseMipLevel = 0,
+      .levelCount = 1,
+      .baseArrayLayer = 0,
+      .layerCount = 1
+    }
+  };
+
+  commandBuffer.pipelineBarrier(srcStage,dstStage,{},{},{},barrier);
+
+  endSingleTimeCommands(commandPool, commandBuffer);
+}
+
+// -----------------------------------------------------------------------------
+void HelloTriangleApplication::copyBufferToImage(
+    vk::Buffer buffer, vk::Image image, uint32_t width, uint32_t height) {
+
+  auto [commandPool, commandBuffer] = beginSingleTimeCommands();
+
+  vk::BufferImageCopy region = {
+    .bufferOffset = 0,
+    .bufferRowLength = 0,
+    .bufferImageHeight = 0,
+    .imageSubresource = vk::ImageSubresourceLayers{
+      .aspectMask = vk::ImageAspectFlagBits::eColor,
+      .mipLevel = 0,
+      .baseArrayLayer = 0,
+      .layerCount = 0
+    },
+    .imageOffset = vk::Offset3D{0, 0, 0},
+    .imageExtent = vk::Extent3D{width, height, 1}
+  };
+  commandBuffer.copyBufferToImage(buffer, image, vk::ImageLayout::eTransferDstOptimal, region);
+
+  endSingleTimeCommands(commandPool, commandBuffer);
 }
 
 // -----------------------------------------------------------------------------

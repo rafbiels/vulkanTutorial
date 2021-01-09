@@ -7,13 +7,16 @@ set(CMAKE_CXX_STANDARD_REQUIRED True)
 
 find_package(glm REQUIRED)
 find_package(glfw3 REQUIRED)
+find_package(stb REQUIRED)
 find_package(Vulkan REQUIRED)
 
 add_library(HelloTriangleApplication HelloTriangleApplication.cxx)
 target_include_directories(HelloTriangleApplication
                            PUBLIC
                            ${GLFW_INCLUDE_DIR}
-                           ${Vulkan_INCLUDE_DIRS})
+                           ${Vulkan_INCLUDE_DIRS}
+                           PRIVATE
+                           ${STB_INCLUDE_DIR})
 target_link_libraries(HelloTriangleApplication
                       PUBLIC
                       ${GLFW_LIBRARY}
