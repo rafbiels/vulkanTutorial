@@ -3,6 +3,7 @@
 
 #define GLFW_INCLUDE_VULKAN
 #define GLM_FORCE_RADIANS
+#define GLM_FORCE_DEPTH_ZERO_TO_ONE
 #define VULKAN_HPP_NO_STRUCT_CONSTRUCTORS
 
 #include <GLFW/glfw3.h>
@@ -62,6 +63,7 @@ private:
   void createDescriptorSets();
   void createCommandPool();
   void createCommandBuffers();
+  void createDepthResources();
   void createTextureImage();
   void createTextureImageView();
   void createTextureSampler();
@@ -88,7 +90,13 @@ private:
   void transitionImageLayout(
     vk::Image image, vk::Format format, vk::ImageLayout oldLayout, vk::ImageLayout newLayout);
   void copyBufferToImage(vk::Buffer buffer, vk::Image image, uint32_t width, uint32_t height);
-  vk::ImageView createImageView(vk::Image image, vk::Format format);
+  vk::ImageView createImageView(
+    vk::Image image, vk::Format format, vk::ImageAspectFlags aspectFlags);
+  vk::Format findSupportedFormat(
+    const std::vector<vk::Format>& candidates,
+    vk::ImageTiling tiling,
+    vk::FormatFeatureFlags features);
+  vk::Format findDepthFormat();
 
   // --------------- static private methods ----------------
   static bool checkValidationLayerSupport();
@@ -100,6 +108,7 @@ private:
   static vk::PresentModeKHR chooseSwapPresentMode(
     const std::vector<vk::PresentModeKHR>& availablePresentModes);
   static void framebufferResizeCallback(GLFWwindow* window, int width, int height);
+  static bool hasStencilComponent(vk::Format format);
   static vk::DebugUtilsMessengerCreateInfoEXT createDebugMessengerCreateInfo();
 
   // Cannot use c++ types as arguments because API requires this function signature
@@ -147,6 +156,9 @@ private:
   vk::DeviceMemory m_textureImageMemory;
   vk::ImageView m_textureImageView;
   vk::Sampler m_textureSampler;
+  vk::Image m_depthImage;
+  vk::DeviceMemory m_depthImageMemory;
+  vk::ImageView m_depthImageView;
   bool m_framebufferResized{false};
 }; // class MyVulkanApp
 
@@ -162,7 +174,7 @@ private:
 };
 
 struct Vertex {
-  glm::vec2 pos;
+  glm::vec3 pos;
   glm::vec3 colour;
   glm::vec2 texCoord;
   static vk::VertexInputBindingDescription getBindingDescription();
