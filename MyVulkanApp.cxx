@@ -538,8 +538,6 @@ void MyVulkanApp::createVertexBuffer() {
 
   // Create staging buffer
   constexpr vk::DeviceSize bufferSize = sizeof(c_vertices[0]) * c_vertices.size();
-  vk::MemoryPropertyFlags memFlags = vk::MemoryPropertyFlagBits::eHostVisible |
-                                     vk::MemoryPropertyFlagBits::eHostCoherent;
 
   auto [stagingBuffer, stagingBufferMemory] =
     createBuffer(bufferSize,
@@ -572,8 +570,6 @@ void MyVulkanApp::createIndexBuffer() {
 
   // Create staging buffer
   constexpr vk::DeviceSize bufferSize = sizeof(c_indices[0]) * c_indices.size();
-  vk::MemoryPropertyFlags memFlags = vk::MemoryPropertyFlagBits::eHostVisible |
-                                     vk::MemoryPropertyFlagBits::eHostCoherent;
 
   auto [stagingBuffer, stagingBufferMemory] =
     createBuffer(bufferSize,
@@ -603,10 +599,11 @@ void MyVulkanApp::createIndexBuffer() {
 
 // -----------------------------------------------------------------------------
 void MyVulkanApp::createUniformBuffers() {
-  m_uniformBuffers.reserve(m_swapChainImages.size());
-  m_uniformBuffersMemory.reserve(m_swapChainImages.size());
+  const size_t nSCImages = m_swapChainImages.size();
+  m_uniformBuffers.reserve(nSCImages);
+  m_uniformBuffersMemory.reserve(nSCImages);
   vk::DeviceSize bufferSize = sizeof(UniformBufferObject);
-  for (const auto& image : m_swapChainImages) {
+  for (size_t i=0; i<nSCImages; ++i) {
     auto [buffer, bufferMemory] = createBuffer(
       bufferSize,
       vk::BufferUsageFlagBits::eUniformBuffer,
