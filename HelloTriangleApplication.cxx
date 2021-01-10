@@ -99,6 +99,8 @@ void HelloTriangleApplication::initVulkan() {
   createFramebuffers();
   createCommandPool();
   createTextureImage();
+  createTextureImageView();
+  createTextureSampler();
   createVertexBuffer();
   createIndexBuffer();
   createUniformBuffers();
@@ -134,6 +136,8 @@ void HelloTriangleApplication::cleanup() {
   }
   m_imageAvailableSemaphores.clear();
 
+  m_device.destroySampler(m_textureSampler);
+  m_device.destroyImageView(m_textureImageView);
   m_device.destroyImage(m_textureImage);
   m_device.freeMemory(m_textureImageMemory);
   m_device.destroyDescriptorSetLayout(m_descriptorSetLayout);
@@ -245,7 +249,9 @@ void HelloTriangleApplication::createLogicalDevice() {
       queueCreateInfos.push_back(queueCreateInfo);
   }
 
-  vk::PhysicalDeviceFeatures deviceFeatures{};
+  vk::PhysicalDeviceFeatures deviceFeatures{
+    .samplerAnisotropy = VK_TRUE
+  };
   vk::DeviceCreateInfo createInfo = {
     .queueCreateInfoCount = static_cast<uint32_t>(queueCreateInfos.size()),
     .pQueueCreateInfos = queueCreateInfos.data(),
@@ -305,25 +311,7 @@ void HelloTriangleApplication::createSwapChain() {
 void HelloTriangleApplication::createImageViews() {
   m_swapChainImageViews.reserve(m_swapChainImages.size());
   for (const vk::Image image : m_swapChainImages) {
-    vk::ImageViewCreateInfo createInfo = {
-      .image = image,
-      .viewType = vk::ImageViewType::e2D,
-      .format = m_swapChainImageFormat,
-      .components = {
-        .r = vk::ComponentSwizzle::eIdentity,
-        .g = vk::ComponentSwizzle::eIdentity,
-        .b = vk::ComponentSwizzle::eIdentity,
-        .a = vk::ComponentSwizzle::eIdentity
-      },
-      .subresourceRange = {
-        .aspectMask = vk::ImageAspectFlagBits::eColor,
-        .baseMipLevel = 0,
-        .levelCount = 1,
-        .baseArrayLayer = 0,
-        .layerCount = 1
-      }
-    };
-    m_swapChainImageViews.push_back(m_device.createImageView(createInfo));
+    m_swapChainImageViews.push_back(createImageView(image, m_swapChainImageFormat));
   }
 }
 
@@ -762,6 +750,33 @@ void HelloTriangleApplication::createTextureImage() {
 }
 
 // -----------------------------------------------------------------------------
+void HelloTriangleApplication::createTextureImageView() {
+  m_textureImageView = createImageView(m_textureImage, vk::Format::eR8G8B8A8Srgb);
+}
+
+// -----------------------------------------------------------------------------
+void HelloTriangleApplication::createTextureSampler() {
+  vk::SamplerCreateInfo samplerInfo = {
+    .magFilter = vk::Filter::eLinear,
+    .minFilter = vk::Filter::eLinear,
+    .mipmapMode = vk::SamplerMipmapMode::eLinear,
+    .addressModeU = vk::SamplerAddressMode::eRepeat,
+    .addressModeV = vk::SamplerAddressMode::eRepeat,
+    .addressModeW = vk::SamplerAddressMode::eRepeat,
+    .mipLodBias = 0.0F,
+    .anisotropyEnable = VK_TRUE,
+    .maxAnisotropy = m_physicalDevice.getProperties().limits.maxSamplerAnisotropy,
+    .compareEnable = VK_FALSE,
+    .compareOp = vk::CompareOp::eAlways,
+    .minLod = 0.0F,
+    .maxLod = 0.0F,
+    .borderColor = vk::BorderColor::eIntOpaqueBlack,
+    .unnormalizedCoordinates = VK_FALSE,
+  };
+  m_textureSampler = m_device.createSampler(samplerInfo);
+}
+
+// -----------------------------------------------------------------------------
 void HelloTriangleApplication::createSyncObjects() {
   vk::FenceCreateInfo fenceInfo = {
     .flags = vk::FenceCreateFlagBits::eSignaled
@@ -960,6 +975,9 @@ bool HelloTriangleApplication::isDeviceSuitable(vk::PhysicalDevice device) {
   */
   QueueFamilyIndices indices = findQueueFamilies(device);
   if (not indices.isComplete()) {return false;}
+
+  vk::PhysicalDeviceFeatures supportedFeatures = device.getFeatures();
+  if (supportedFeatures.samplerAnisotropy != VK_TRUE) {return false;}
 
   bool extensionsSupported = checkDeviceExtensionSupport(device);
   if (not extensionsSupported) {return false;}
@@ -1242,7 +1260,7 @@ void HelloTriangleApplication::copyBufferToImage(
       .aspectMask = vk::ImageAspectFlagBits::eColor,
       .mipLevel = 0,
       .baseArrayLayer = 0,
-      .layerCount = 0
+      .layerCount = 1
     },
     .imageOffset = vk::Offset3D{0, 0, 0},
     .imageExtent = vk::Extent3D{width, height, 1}
@@ -1250,6 +1268,29 @@ void HelloTriangleApplication::copyBufferToImage(
   commandBuffer.copyBufferToImage(buffer, image, vk::ImageLayout::eTransferDstOptimal, region);
 
   endSingleTimeCommands(commandPool, commandBuffer);
+}
+
+// -----------------------------------------------------------------------------
+vk::ImageView HelloTriangleApplication::createImageView(vk::Image image, vk::Format format) {
+  vk::ImageViewCreateInfo viewInfo = {
+    .image = image,
+    .viewType = vk::ImageViewType::e2D,
+    .format = format,
+    .components = {
+      .r = vk::ComponentSwizzle::eIdentity,
+      .g = vk::ComponentSwizzle::eIdentity,
+      .b = vk::ComponentSwizzle::eIdentity,
+      .a = vk::ComponentSwizzle::eIdentity
+    },
+    .subresourceRange = vk::ImageSubresourceRange{
+      .aspectMask = vk::ImageAspectFlagBits::eColor,
+      .baseMipLevel = 0,
+      .levelCount = 1,
+      .baseArrayLayer = 0,
+      .layerCount = 1
+    }
+  };
+  return m_device.createImageView(viewInfo);
 }
 
 // -----------------------------------------------------------------------------

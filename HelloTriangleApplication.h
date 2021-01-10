@@ -63,6 +63,8 @@ private:
   void createCommandPool();
   void createCommandBuffers();
   void createTextureImage();
+  void createTextureImageView();
+  void createTextureSampler();
   void createSyncObjects();
   void cleanupSwapChain();
   void recreateSwapChain();
@@ -86,6 +88,7 @@ private:
   void transitionImageLayout(
     vk::Image image, vk::Format format, vk::ImageLayout oldLayout, vk::ImageLayout newLayout);
   void copyBufferToImage(vk::Buffer buffer, vk::Image image, uint32_t width, uint32_t height);
+  vk::ImageView createImageView(vk::Image image, vk::Format format);
 
   // --------------- static private methods ----------------
   static bool checkValidationLayerSupport();
@@ -142,6 +145,8 @@ private:
   std::vector<vk::DescriptorSet> m_descriptorSets;
   vk::Image m_textureImage;
   vk::DeviceMemory m_textureImageMemory;
+  vk::ImageView m_textureImageView;
+  vk::Sampler m_textureSampler;
   bool m_framebufferResized{false};
 }; // class HelloTriangleApplication
 
