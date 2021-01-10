@@ -10,23 +10,23 @@ find_package(glfw3 REQUIRED)
 find_package(stb REQUIRED)
 find_package(Vulkan REQUIRED)
 
-add_library(HelloTriangleApplication HelloTriangleApplication.cxx)
-target_include_directories(HelloTriangleApplication
+add_library(MyVulkanApp MyVulkanApp.cxx)
+target_include_directories(MyVulkanApp
                            PUBLIC
                            ${GLFW_INCLUDE_DIR}
                            ${Vulkan_INCLUDE_DIRS}
                            PRIVATE
                            ${STB_INCLUDE_DIR})
-target_link_libraries(HelloTriangleApplication
+target_link_libraries(MyVulkanApp
                       PUBLIC
                       ${GLFW_LIBRARY}
                       ${Vulkan_LIBRARIES}
                       glm::glm)
 
-add_executable(myVulkanApp main.cxx)
-target_link_libraries(myVulkanApp
+add_executable(app main.cxx)
+target_link_libraries(app
                       PUBLIC
-                      HelloTriangleApplication)
+                      MyVulkanApp)
 
 foreach(SHADER_NAME vert frag)
   add_custom_command(OUTPUT ${SHADER_NAME}.spv

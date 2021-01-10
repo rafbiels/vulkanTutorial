@@ -1,5 +1,5 @@
-#ifndef HELLOTRIANGLEAPPLICATION_H
-#define HELLOTRIANGLEAPPLICATION_H
+#ifndef MyVulkanApp_H
+#define MyVulkanApp_H
 
 #define GLFW_INCLUDE_VULKAN
 #define GLM_FORCE_RADIANS
@@ -14,7 +14,7 @@
 #include <utility>
 #include <vector>
 
-class HelloTriangleApplication {
+class MyVulkanApp {
 public:
   // --------------- public methods ------------------------
   void run();
@@ -148,7 +148,7 @@ private:
   vk::ImageView m_textureImageView;
   vk::Sampler m_textureSampler;
   bool m_framebufferResized{false};
-}; // class HelloTriangleApplication
+}; // class MyVulkanApp
 
 class FpsCounter {
 public:
@@ -169,4 +169,4 @@ struct Vertex {
   static std::array<vk::VertexInputAttributeDescription, 3> getAttributeDescriptions();
 };
 
-#endif // HELLOTRIANGLEAPPLICATION_H
+#endif // MyVulkanApp_H
