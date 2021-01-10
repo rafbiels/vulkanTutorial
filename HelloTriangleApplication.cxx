@@ -36,10 +36,10 @@ namespace {
     constexpr bool c_enableValidationLayers = true;
   #endif
   constexpr std::array<Vertex,4> c_vertices = {
-    Vertex{glm::vec2{-0.5F, -0.5F}, glm::vec3{1.0F, 0.0F, 0.0F}},
-    Vertex{glm::vec2{ 0.5F, -0.5F}, glm::vec3{0.0F, 1.0F, 0.0F}},
-    Vertex{glm::vec2{ 0.5F,  0.5F}, glm::vec3{0.0F, 0.0F, 1.0F}},
-    Vertex{glm::vec2{-0.5F,  0.5F}, glm::vec3{1.0F, 1.0F, 1.0F}}
+    Vertex{glm::vec2{-0.7F, -0.7F}, glm::vec3{1.0F, 0.0F, 0.0F}, glm::vec2{1.0F, 0.0F}},
+    Vertex{glm::vec2{ 0.7F, -0.7F}, glm::vec3{0.0F, 1.0F, 0.0F}, glm::vec2{0.0F, 0.0F}},
+    Vertex{glm::vec2{ 0.7F,  0.7F}, glm::vec3{0.0F, 0.0F, 1.0F}, glm::vec2{0.0F, 1.0F}},
+    Vertex{glm::vec2{-0.7F,  0.7F}, glm::vec3{1.0F, 1.0F, 1.0F}, glm::vec2{1.0F, 1.0F}}
   };
   constexpr std::array<uint16_t, 6> c_indices = {0, 1, 2, 2, 3, 0};
   // Helper functions
@@ -579,62 +579,91 @@ void HelloTriangleApplication::createUniformBuffers() {
 
 // -----------------------------------------------------------------------------
 void HelloTriangleApplication::createDescriptorPool() {
-  const auto nImageViews = static_cast<uint32_t>(m_swapChainImages.size());
-  vk::DescriptorPoolSize poolSize = {
-    .type = vk::DescriptorType::eUniformBuffer,
-    .descriptorCount = nImageViews
+  const auto nSCImages = static_cast<uint32_t>(m_swapChainImages.size());
+  const auto poolSizes = std::array{
+    vk::DescriptorPoolSize{
+      .type = vk::DescriptorType::eUniformBuffer,
+      .descriptorCount = nSCImages
+    },
+    vk::DescriptorPoolSize{
+      .type = vk::DescriptorType::eCombinedImageSampler,
+      .descriptorCount = nSCImages
+    },
   };
   vk::DescriptorPoolCreateInfo poolInfo = {
-    .maxSets = nImageViews,
-    .poolSizeCount = 1,
-    .pPoolSizes = &poolSize
+    .maxSets = nSCImages,
+    .poolSizeCount = static_cast<uint32_t>(poolSizes.size()),
+    .pPoolSizes = poolSizes.data()
   };
   m_descriptorPool = m_device.createDescriptorPool(poolInfo);
 }
 
 // -----------------------------------------------------------------------------
 void HelloTriangleApplication::createDescriptorSetLayout() {
-  vk::DescriptorSetLayoutBinding uboLayoutBinding = {
-    .binding = 0,
-    .descriptorType = vk::DescriptorType::eUniformBuffer,
-    .descriptorCount = 1,
-    .stageFlags = vk::ShaderStageFlagBits::eVertex
+  const auto bindings = std::array{
+    vk::DescriptorSetLayoutBinding{
+      .binding = 0,
+      .descriptorType = vk::DescriptorType::eUniformBuffer,
+      .descriptorCount = 1,
+      .stageFlags = vk::ShaderStageFlagBits::eVertex
+    },
+    vk::DescriptorSetLayoutBinding{
+      .binding = 1,
+      .descriptorType = vk::DescriptorType::eCombinedImageSampler,
+      .descriptorCount = 1,
+      .stageFlags = vk::ShaderStageFlagBits::eFragment
+    }
   };
   vk::DescriptorSetLayoutCreateInfo layoutInfo = {
-    .bindingCount = 1,
-    .pBindings = &uboLayoutBinding
+    .bindingCount = static_cast<uint32_t>(bindings.size()),
+    .pBindings = bindings.data()
   };
   m_descriptorSetLayout = m_device.createDescriptorSetLayout(layoutInfo);
 }
 
 // -----------------------------------------------------------------------------
 void HelloTriangleApplication::createDescriptorSets() {
-  const size_t nImageViews = m_swapChainImages.size();
-  std::vector<vk::DescriptorSetLayout> layouts{nImageViews, m_descriptorSetLayout};
+  const size_t nSCImages = m_swapChainImages.size();
+  std::vector<vk::DescriptorSetLayout> layouts{nSCImages, m_descriptorSetLayout};
   vk::DescriptorSetAllocateInfo allocInfo = {
     .descriptorPool = m_descriptorPool,
-    .descriptorSetCount = static_cast<uint32_t>(nImageViews),
+    .descriptorSetCount = static_cast<uint32_t>(nSCImages),
     .pSetLayouts = layouts.data()
   };
   m_descriptorSets = m_device.allocateDescriptorSets(allocInfo);
 
-  size_t iImageView{0};
+  size_t iSCImage{0};
   for (vk::DescriptorSet descriptorSet : m_descriptorSets) {
     vk::DescriptorBufferInfo bufferInfo = {
-      .buffer = m_uniformBuffers[iImageView],
+      .buffer = m_uniformBuffers[iSCImage],
       .offset = 0,
       .range = sizeof(UniformBufferObject)
     };
-    vk::WriteDescriptorSet descriptorWrite = {
-      .dstSet = descriptorSet,
-      .dstBinding = 0,
-      .dstArrayElement = 0,
-      .descriptorCount = 1,
-      .descriptorType = vk::DescriptorType::eUniformBuffer,
-      .pBufferInfo = &bufferInfo
+    vk::DescriptorImageInfo imageInfo = {
+      .sampler = m_textureSampler,
+      .imageView = m_textureImageView,
+      .imageLayout = vk::ImageLayout::eShaderReadOnlyOptimal
     };
-    m_device.updateDescriptorSets({descriptorWrite}, {});
-    ++iImageView;
+    const auto descriptorWrites = std::array{
+      vk::WriteDescriptorSet{
+        .dstSet = descriptorSet,
+        .dstBinding = 0,
+        .dstArrayElement = 0,
+        .descriptorCount = 1,
+        .descriptorType = vk::DescriptorType::eUniformBuffer,
+        .pBufferInfo = &bufferInfo
+      },
+      vk::WriteDescriptorSet{
+        .dstSet = descriptorSet,
+        .dstBinding = 1,
+        .dstArrayElement = 0,
+        .descriptorCount = 1,
+        .descriptorType = vk::DescriptorType::eCombinedImageSampler,
+        .pImageInfo = &imageInfo
+      },
+    };
+    m_device.updateDescriptorSets(descriptorWrites, {});
+    ++iSCImage;
   }
 }
 
@@ -1487,7 +1516,7 @@ vk::VertexInputBindingDescription Vertex::getBindingDescription() {
 }
 
 // -----------------------------------------------------------------------------
-std::array<vk::VertexInputAttributeDescription, 2> Vertex::getAttributeDescriptions() {
+std::array<vk::VertexInputAttributeDescription, 3> Vertex::getAttributeDescriptions() {
   return std::array{
     vk::VertexInputAttributeDescription{
       .location = 0,
@@ -1500,6 +1529,12 @@ std::array<vk::VertexInputAttributeDescription, 2> Vertex::getAttributeDescripti
       .binding = 0,
       .format = vk::Format::eR32G32B32Sfloat,
       .offset = offsetof(Vertex, colour)
+    },
+    vk::VertexInputAttributeDescription{
+      .location = 2,
+      .binding = 0,
+      .format = vk::Format::eR32G32Sfloat,
+      .offset = offsetof(Vertex, texCoord)
     },
   };
 }
